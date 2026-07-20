@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHEEET · 실시간 땅따먹기</title>
+<style>
+  :root {
+    --p1: #1a73e8; --p1bg: #d2e3fc;
+    --p2: #d93025; --p2bg: #fad2cf;
+    --grid: #d0d0d0; --head: #f1f3f4; --headtx: #5f6368;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    background: #fafafa; color: #202124;
+  }
+  h1 { font-size: 20px; margin: 0 0 2px; }
+  .sub { color: #5f6368; font-size: 13px; margin-bottom: 14px; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 14px;
+  }
+  button {
+    font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #dadce0; background: #fff; color: #202124;
+  }
+  button:hover { background: #f1f3f4; }
+  button.on { color: #fff; border-color: transparent; font-weight: 600; }
+  button.p1.on { background: var(--p1); }
+  button.p2.on { background: var(--p2); }
+  button.start { background: #188038; color: #fff; border-color: transparent; font-weight: 600; }
+  .score { display: flex; gap: 14px; align-items: center; margin-left: auto; font-weight: 600; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; }
+  .chip.p1 { background: var(--p1bg); color: var(--p1); }
+  .chip.p2 { background: var(--p2bg); color: var(--p2); }
+  #timer { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; }
+  #banner { min-height: 22px; font-weight: 700; margin: 6px 0 12px; }
+
+  /* 스프레드시트 룩 */
+  .grid-wrap { overflow: auto; display: inline-block; border: 1px solid var(--grid); }
+  table { border-collapse: collapse; }
+  th, td {
+    width: 30px; height: 30px; text-align: center; vertical-align: middle;
+    border: 1px solid var(--grid); font-size: 12px; padding: 0;
+  }
+  th { background: var(--head); color: var(--headtx); font-weight: 500; }
+  td { background: #fff; cursor: pointer; user-select: none; transition: background .05s; }
+  td:hover { background: #e8f0fe; }
+  td.p1 { background: var(--p1bg); color: var(--p1); cursor: default; }
+  td.p2 { background: var(--p2bg); color: var(--p2); cursor: default; }
+  td.flash { outline: 2px solid #fbbc04; outline-offset: -2px; }
+
+  .note { margin-top: 16px; font-size: 12px; color: #5f6368; line-height: 1.7; max-width: 640px; }
+  code { background: #f1f3f4; padding: 1px 5px; border-radius: 4px; }
+  .role-tag { font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1>SHEEET · 실시간 땅따먹기 🟦🟥</h1>
+  <div class="sub">스프레드시트 위에서 두 명이 <b>동시에</b> 칸을 차지 — 30초 후 더 많이 가진 쪽 승리. (턴 없음 = 진짜 실시간)</div>
+
+  <div class="bar">
+    <span>내 역할:</span>
+    <button id="btnP1" class="p1" onclick="pick('p1')">🔵 파랑으로 참가</button>
+    <button id="btnP2" class="p2" onclick="pick('p2')">🔴 빨강으로 참가</button>
+    <button class="start" onclick="startGame()">▶ 게임 시작 (30초)</button>
+    <button onclick="resetGame()">↺ 초기화</button>
+    <div class="score">
+      <span class="chip p1">🔵 <span id="s1">0</span></span>
+      <span class="chip p2">🔴 <span id="s2">0</span></span>
+      <span id="timer">--</span>
+    </div>
+  </div>
+
+  <div id="banner"></div>
+
+  <div class="grid-wrap"><table id="board"></table></div>
+
+  <div class="note">
+    <b>2인 실시간 테스트 방법</b><br>
+    이 파일을 <b>같은 브라우저(크롬 권장)에서 탭 2개</b>로 엽니다 → 한 탭은 <span class="role-tag" style="color:var(--p1)">🔵 파랑</span>, 다른 탭은
+    <span class="role-tag" style="color:var(--p2)">🔴 빨강</span> 선택 → 아무 탭에서 <b>게임 시작</b> → 두 탭에서 칸을 마구 클릭하세요. 상대가 먹은 칸이 즉시 반영됩니다.<br><br>
+    <b>동시성 처리 (Figma식 Last-Writer-Wins):</b> 두 명이 <b>같은 빈 칸</b>을 거의 동시에 클릭하면, 나중에 저장된 쪽이 그 칸을 갖습니다(마지막 쓰기 승리). 이게 리서치에서 확인한 실시간 멀티의 핵심 충돌해결 방식이에요.<br><br>
+    <b>동기화 방식:</b> 이 프로토타입은 <code>localStorage</code> 공유 상태 + <code>BroadcastChannel</code>로 탭 간 실시간 동기화 — 서버 0대. 실서비스에선 이 자리를 <b>Firebase Realtime DB(WebSocket)</b>로 그대로 교체하면 인터넷 너머 플레이어끼리 동일하게 동작합니다.
+  </div>
+
+<script>
+// ── 설정 ────────────────────────────────────────────────
+var COLS = 12, ROWS = 12, DURATION = 30000; // 30초
+var KEY = 'sheeet-territory-v1';
+var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+var myRole = null;          // 이 탭의 역할 (p1/p2)
+var chan = ('BroadcastChannel' in window) ? new BroadcastChannel('sheeet-territory') : null;
+var lastSeq = -1;
+
+// ── 공유 상태 입출력 ────────────────────────────────────
+function blank() { return { seq: 0, phase: 'idle', owners: {}, endAt: 0 }; }
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || blank(); }
+  catch (e) { return blank(); }
+}
+function save(st) {
+  st.seq++;
+  localStorage.setItem(KEY, JSON.stringify(st));
+  if (chan) chan.postMessage(st.seq);
+}
+
+// ── 역할 선택 ───────────────────────────────────────────
+function pick(role) {
+  myRole = role;
+  document.getElementById('btnP1').classList.toggle('on', role === 'p1');
+  document.getElementById('btnP2').classList.toggle('on', role === 'p2');
+}
+
+// ── 게임 제어 ───────────────────────────────────────────
+function startGame() {
+  var st = blank();
+  st.phase = 'playing';
+  st.endAt = Date.now() + DURATION;
+  save(st);
+  render(st);
+}
+function resetGame() {
+  var st = blank();
+  save(st);
+  render(st);
+}
+
+// ── 착수(칸 차지) ───────────────────────────────────────
+function claim(idx) {
+  if (!myRole) { flashBanner('먼저 역할(🔵/🔴)을 선택하세요.'); return; }
+  var st = load();
+  if (st.phase !== 'playing') { flashBanner('게임 시작을 눌러주세요.'); return; }
+  if (Date.now() >= st.endAt) return;
+  if (st.owners[idx]) return;          // 이미 누군가 차지 → 빈 칸만 가능
+  st.owners[idx] = myRole;             // 동시 클릭 시 나중 save가 이김(LWW)
+  save(st);
+  render(st);
+}
+
+// ── 렌더링 ──────────────────────────────────────────────
+function buildBoard() {
+  var t = document.getElementById('board');
+  var html = '<tr><th></th>';
+  for (var c = 0; c < COLS; c++) html += '<th>' + LETTERS[c] + '</th>';
+  html += '</tr>';
+  for (var r = 0; r < ROWS; r++) {
+    html += '<tr><th>' + (r + 1) + '</th>';
+    for (var c = 0; c < COLS; c++) {
+      var idx = r * COLS + c;
+      html += '<td id="c' + idx + '" onclick="claim(' + idx + ')"></td>';
+    }
+    html += '</tr>';
+  }
+  t.innerHTML = html;
+}
+function render(st) {
+  var s1 = 0, s2 = 0;
+  for (var idx = 0; idx < ROWS * COLS; idx++) {
+    var td = document.getElementById('c' + idx);
+    var o = st.owners[idx];
+    td.className = o || '';
+    td.textContent = o === 'p1' ? '●' : (o === 'p2' ? '●' : '');
+    if (o === 'p1') s1++; else if (o === 'p2') s2++;
+  }
+  document.getElementById('s1').textContent = s1;
+  document.getElementById('s2').textContent = s2;
+
+  if (st.phase === 'over') {
+    var b = document.getElementById('banner');
+    if (s1 === s2) b.textContent = '🤝 무승부! (' + s1 + ' : ' + s2 + ')';
+    else if (s1 > s2) { b.textContent = '🔵 파랑 승리! (' + s1 + ' : ' + s2 + ')'; b.style.color = 'var(--p1)'; }
+    else { b.textContent = '🔴 빨강 승리! (' + s2 + ' : ' + s1 + ')'; b.style.color = 'var(--p2)'; }
+  } else if (st.phase === 'idle') {
+    document.getElementById('banner').textContent = '';
+  }
+}
+
+// ── 타이머 & 폴링 루프 ──────────────────────────────────
+function tick() {
+  var st = load();
+
+  // 다른 탭의 변경 반영
+  if (st.seq !== lastSeq) { lastSeq = st.seq; render(st); }
+
+  // 남은 시간 표시 / 종료 처리
+  if (st.phase === 'playing') {
+    var left = Math.max(0, st.endAt - Date.now());
+    document.getElementById('timer').textContent = (left / 1000).toFixed(1) + 's';
+    if (left <= 0) { st.phase = 'over'; save(st); lastSeq = st.seq; render(st); }
+  } else if (st.phase === 'over') {
+    document.getElementById('timer').textContent = '종료';
+  } else {
+    document.getElementById('timer').textContent = '--';
+  }
+}
+function flashBanner(msg) {
+  var b = document.getElementById('banner');
+  b.textContent = msg; b.style.color = '#5f6368';
+  setTimeout(function () { if (b.textContent === msg) b.textContent = ''; }, 1500);
+}
+
+// ── 시작 ────────────────────────────────────────────────
+buildBoard();
+if (chan) chan.onmessage = function () { var st = load(); if (st.seq !== lastSeq) { lastSeq = st.seq; render(st); } };
+render(load());
+setInterval(tick, 100);   // 100ms 폴링 = 실시간 체감 + 크로스탭 확실 동기화
+</script>
+</body>
+</html>
