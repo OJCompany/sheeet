@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHEEET · 셀 플래피 (Flappy in Cells)</title>
+<style>
+  :root { --grid:#d0d0d0; --head:#f1f3f4; --headtx:#5f6368; --pipe:#34a853; --pipe2:#188038; --sky:#e8f4ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:18px; font-family:"Segoe UI","Malgun Gothic",system-ui,sans-serif; background:#fafafa; color:#202124; }
+  h1 { font-size:19px; margin:0 0 2px; }
+  .sub { color:#5f6368; font-size:13px; margin-bottom:10px; }
+  .fbar { display:flex; align-items:center; gap:8px; font-size:12px; color:#5f6368;
+          border:1px solid var(--grid); background:#fff; padding:5px 10px; border-radius:6px 6px 0 0; border-bottom:none; width:max-content; }
+  .fbar code { background:#f1f3f4; padding:1px 6px; border-radius:4px; color:#188038; font-weight:600; }
+  .wrap { display:inline-block; border:1px solid var(--grid); }
+  table { border-collapse:collapse; }
+  th,td { width:26px; height:26px; text-align:center; vertical-align:middle; border:1px solid var(--grid); font-size:13px; padding:0; }
+  th { background:var(--head); color:var(--headtx); font-weight:500; font-size:11px; }
+  td { background:#fff; }
+  td.sky  { background:var(--sky); }
+  td.pipe { background:var(--pipe); border-color:var(--pipe2); }
+  td.bird { background:#fff59d; }
+  .hud { display:flex; gap:16px; align-items:baseline; margin:10px 0; }
+  .score { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .best { color:#5f6368; font-weight:600; }
+  #msg { font-weight:700; color:#1a73e8; min-height:20px; }
+  .note { margin-top:14px; font-size:12px; color:#5f6368; line-height:1.7; max-width:600px; }
+  kbd { background:#f1f3f4; border:1px solid #dadce0; border-bottom-width:2px; border-radius:4px; padding:1px 6px; font-family:inherit; font-size:11px; }
+</style>
+</head>
+<body>
+  <h1>SHEEET · 셀 플래피 🐤</h1>
+  <div class="sub">새·파이프가 전부 <b>스프레드시트 셀 색칠</b>로 그려집니다. 이미지 0장, 순수 셀 렌더링.</div>
+
+  <div class="hud">
+    <div class="score" id="score">0</div>
+    <div class="best" id="best">최고 0</div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="fbar">📊 <code>=FLAPPY()</code> · <kbd>Space</kbd> 또는 클릭/탭으로 날갯짓</div>
+  <div class="wrap"><table id="board"></table></div>
+
+  <div class="note">
+    <b>왜 부드럽나?</b> 이 렌더링은 브라우저 JS(<code>requestAnimationFrame</code>, 60fps)로 셀 색을 바꿔요 — Apps Script HtmlService 패널에 올려도 똑같이 부드럽습니다.
+    반면 <b>진짜 구글 시트 셀을 Apps Script로 직접</b> 그리면 재계산·서버 왕복 때문에 1~2fps로 뚝뚝 끊겨요. (그래서 셀 액션게임은 "패널 렌더"가 정답)
+  </div>
+
+<script>
+// ── 설정 ─────────────────────────────────────
+var COLS = 24, ROWS = 16, BIRDCOL = 5;
+var GRAV = 0.028, FLAP = -0.42, SPEED = 0.14, GAP = 5, SPAWN_GAP = 11;
+var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+var birdY, vel, pipes, score, best = 0, state; // state: ready | play | over
+var cells = [];
+
+// ── 보드 DOM 생성 ────────────────────────────
+(function build() {
+  var t = document.getElementById('board'), html = '<tr><th></th>';
+  for (var c = 0; c < COLS; c++) html += '<th>' + LETTERS[c % 26] + '</th>';
+  html += '</tr>';
+  for (var r = 0; r < ROWS; r++) {
+    html += '<tr><th>' + (r + 1) + '</th>';
+    for (var c = 0; c < COLS; c++) html += '<td id="k' + r + '_' + c + '"></td>';
+    html += '</tr>';
+  }
+  t.innerHTML = html;
+  for (var r = 0; r < ROWS; r++) { cells[r] = []; for (var c = 0; c < COLS; c++) cells[r][c] = document.getElementById('k' + r + '_' + c); }
+})();
+
+function reset() {
+  birdY = ROWS / 2; vel = 0; score = 0; pipes = [];
+  spawn(COLS + 2); spawn(COLS + 2 + SPAWN_GAP);
+  state = 'ready';
+  document.getElementById('msg').textContent = 'Space/클릭으로 시작!';
+  document.getElementById('score').textContent = '0';
+  draw();
+}
+function spawn(x) {
+  var gs = 1 + Math.floor(Math.random() * (ROWS - GAP - 2));
+  pipes.push({ x: x, gap: gs, scored: false });
+}
+function flap() {
+  if (state === 'ready') { state = 'play'; document.getElementById('msg').textContent = ''; }
+  if (state === 'play') vel = FLAP;
+  else if (state === 'over') reset();
+}
+
+// ── 물리 & 게임 루프 ────────────────────────
+function step() {
+  if (state === 'play') {
+    vel += GRAV; birdY += vel;
+
+    for (var i = 0; i < pipes.length; i++) {
+      var p = pipes[i];
+      p.x -= SPEED;
+      if (!p.scored && p.x < BIRDCOL) { p.scored = true; score++; document.getElementById('score').textContent = score; }
+    }
+    if (pipes.length && pipes[0].x < -1) pipes.shift();
+    var last = pipes[pipes.length - 1];
+    if (last.x <= COLS - SPAWN_GAP) spawn(COLS + 1);
+
+    var br = Math.round(birdY);
+    var dead = br < 0 || br > ROWS - 1;
+    for (var i = 0; i < pipes.length && !dead; i++) {
+      if (Math.round(pipes[i].x) === BIRDCOL) {
+        if (br < pipes[i].gap || br >= pipes[i].gap + GAP) dead = true;
+      }
+    }
+    if (dead) {
+      state = 'over';
+      best = Math.max(best, score);
+      document.getElementById('best').textContent = '최고 ' + best;
+      document.getElementById('msg').textContent = '💥 충돌! 점수 ' + score + ' — Space/클릭으로 재시작';
+    }
+  }
+  draw();
+  requestAnimationFrame(step);
+}
+
+// ── 셀 렌더링 ───────────────────────────────
+function draw() {
+  var br = Math.round(birdY);
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var cls = 'sky';
+      for (var i = 0; i < pipes.length; i++) {
+        if (Math.round(pipes[i].x) === c && (r < pipes[i].gap || r >= pipes[i].gap + GAP)) { cls = 'pipe'; break; }
+      }
+      if (c === BIRDCOL && r === br) cls = 'bird';
+      var el = cells[r][c];
+      if (el.className !== cls) el.className = cls;
+      var want = (c === BIRDCOL && r === br) ? '🐤' : '';
+      if (el.textContent !== want) el.textContent = want;
+    }
+  }
+}
+
+// ── 입력 ────────────────────────────────────
+window.addEventListener('keydown', function (e) { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+document.getElementById('board').addEventListener('mousedown', flap);
+document.getElementById('board').addEventListener('touchstart', function (e) { e.preventDefault(); flap(); }, { passive: false });
+
+reset();
+requestAnimationFrame(step);
+</script>
+</body>
+</html>

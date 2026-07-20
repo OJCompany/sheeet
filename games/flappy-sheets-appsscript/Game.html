@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<base target="_top">
+<style>
+  :root { --grid:#d0d0d0; --head:#f1f3f4; --headtx:#5f6368; --pipe:#34a853; --pipe2:#188038; --sky:#e8f4ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:10px 12px; font-family:"Segoe UI","Malgun Gothic",system-ui,sans-serif; color:#202124; background:#fff; }
+  .hud { display:flex; gap:14px; align-items:baseline; margin:0 0 8px; }
+  .score { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .best { color:#5f6368; font-weight:600; font-size:13px; }
+  #msg { font-weight:700; color:#1a73e8; font-size:13px; min-height:18px; }
+  .fbar { display:flex; align-items:center; gap:8px; font-size:11px; color:#5f6368;
+          border:1px solid var(--grid); background:#fff; padding:4px 9px; border-radius:6px 6px 0 0; border-bottom:none; width:max-content; }
+  .fbar code { background:#f1f3f4; padding:1px 6px; border-radius:4px; color:#188038; font-weight:600; }
+  .wrap { display:inline-block; border:1px solid var(--grid); }
+  table { border-collapse:collapse; }
+  th,td { width:24px; height:24px; text-align:center; vertical-align:middle; border:1px solid var(--grid); font-size:13px; padding:0; }
+  th { background:var(--head); color:var(--headtx); font-weight:500; font-size:10px; }
+  td { background:#fff; }
+  td.sky  { background:var(--sky); }
+  td.pipe { background:var(--pipe); border-color:var(--pipe2); }
+  td.bird { background:#fff59d; }
+  .tip { margin-top:8px; font-size:11px; color:#9aa0a6; }
+  kbd { background:#f1f3f4; border:1px solid #dadce0; border-bottom-width:2px; border-radius:4px; padding:1px 6px; font-size:10px; }
+</style>
+</head>
+<body>
+  <div class="hud">
+    <div class="score" id="score">0</div>
+    <div class="best" id="best">최고 0</div>
+    <div id="msg"></div>
+  </div>
+  <div class="fbar">📊 <code>=FLAPPY()</code> · <kbd>Space</kbd> 또는 클릭/탭으로 날갯짓</div>
+  <div class="wrap"><table id="board"></table></div>
+  <div class="tip">셀 색칠만으로 렌더링 · 구글 시트 안에서 실행 중</div>
+
+<script>
+// ── 설정 (속도: cells/second — 프레임 독립적) ─────────────
+var COLS = 24, ROWS = 14, BIRDCOL = 5;
+var GRAV = 5.2;     // 중력 (cells/s²)  ↑클수록 빨리 떨어짐
+var FLAP = -2.4;    // 날갯짓 임펄스 (cells/s)
+var SPEED = 2.6;    // 파이프 이동 속도 (cells/s)  ← 느리게
+var GAP = 6;        // 통로 높이(칸)
+var SPAWN_GAP = 13; // 파이프 간격(칸)
+var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+var birdY, vel, pipes, score, best = 0, state, lastT = 0, cells = [];
+
+(function build() {
+  var t = document.getElementById('board'), html = '<tr><th></th>';
+  for (var c = 0; c < COLS; c++) html += '<th>' + LETTERS[c % 26] + '</th>';
+  html += '</tr>';
+  for (var r = 0; r < ROWS; r++) {
+    html += '<tr><th>' + (r + 1) + '</th>';
+    for (var c = 0; c < COLS; c++) html += '<td id="k' + r + '_' + c + '"></td>';
+    html += '</tr>';
+  }
+  t.innerHTML = html;
+  for (var r = 0; r < ROWS; r++) { cells[r] = []; for (var c = 0; c < COLS; c++) cells[r][c] = document.getElementById('k' + r + '_' + c); }
+})();
+
+function reset() {
+  birdY = ROWS / 2; vel = 0; score = 0; pipes = [];
+  spawn(COLS + 2); spawn(COLS + 2 + SPAWN_GAP);
+  state = 'ready';
+  document.getElementById('msg').textContent = 'Space/클릭으로 시작!';
+  document.getElementById('score').textContent = '0';
+  draw();
+}
+function spawn(x) {
+  var gs = 1 + Math.floor(Math.random() * (ROWS - GAP - 2));
+  pipes.push({ x: x, gap: gs, scored: false });
+}
+function flap() {
+  if (state === 'ready') { state = 'play'; document.getElementById('msg').textContent = ''; }
+  if (state === 'play') vel = FLAP;
+  else if (state === 'over') reset();
+}
+
+function loop(now) {
+  if (!lastT) lastT = now;
+  var dt = Math.min(0.05, (now - lastT) / 1000); // 초 단위, 큰 튐 방지
+  lastT = now;
+
+  if (state === 'play') {
+    vel += GRAV * dt; birdY += vel * dt;
+    for (var i = 0; i < pipes.length; i++) {
+      var p = pipes[i];
+      p.x -= SPEED * dt;
+      if (!p.scored && p.x < BIRDCOL) { p.scored = true; score++; document.getElementById('score').textContent = score; }
+    }
+    if (pipes.length && pipes[0].x < -1) pipes.shift();
+    var last = pipes[pipes.length - 1];
+    if (last.x <= COLS - SPAWN_GAP) spawn(COLS + 1);
+
+    var br = Math.round(birdY), dead = br < 0 || br > ROWS - 1;
+    for (var i = 0; i < pipes.length && !dead; i++) {
+      if (Math.round(pipes[i].x) === BIRDCOL && (br < pipes[i].gap || br >= pipes[i].gap + GAP)) dead = true;
+    }
+    if (dead) {
+      state = 'over'; best = Math.max(best, score);
+      document.getElementById('best').textContent = '최고 ' + best;
+      document.getElementById('msg').textContent = '💥 충돌! 점수 ' + score + ' — Space/클릭으로 재시작';
+    }
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function draw() {
+  var br = Math.round(birdY);
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var cls = 'sky';
+      for (var i = 0; i < pipes.length; i++) {
+        if (Math.round(pipes[i].x) === c && (r < pipes[i].gap || r >= pipes[i].gap + GAP)) { cls = 'pipe'; break; }
+      }
+      if (c === BIRDCOL && r === br) cls = 'bird';
+      var el = cells[r][c];
+      if (el.className !== cls) el.className = cls;
+      var want = (c === BIRDCOL && r === br) ? '🐤' : '';
+      if (el.textContent !== want) el.textContent = want;
+    }
+  }
+}
+
+window.addEventListener('keydown', function (e) { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+document.getElementById('board').addEventListener('mousedown', flap);
+document.getElementById('board').addEventListener('touchstart', function (e) { e.preventDefault(); flap(); }, { passive: false });
+
+reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
