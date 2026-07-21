@@ -112,14 +112,15 @@ try {
     $DEEPRED = RGBv 168 42 38
     $BROWN = RGBv 88 52 28
     Add-Shp $wsGame 'title_bg'   1   0   0 990 590 (RGBv 24 28 40) $null '' 10 $false $WHITE 2 '' $true -1 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt2'   5 290 300  95  42 $DEEPRED $BROWN '2인' 15 $false $CREAM 2 'modMain.OnCount2' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt3'   5 395 300  95  42 $DEEPRED $BROWN '3인' 15 $false $CREAM 2 'modMain.OnCount3' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt4'   5 500 300  95  42 $DEEPRED $BROWN '4인' 15 $false $CREAM 2 'modMain.OnCount4' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt5'   5 605 300  95  42 $DEEPRED $BROWN '5인' 15 $false $CREAM 2 'modMain.OnCount5' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Easy'   5 258 356 150  46 (RGBv 58 122 74) $BROWN '초급으로 시작' 15 $false $CREAM 2 'modMain.OnEasy' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Normal' 5 420 356 150  46 (RGBv 196 130 42) $BROWN '중급으로 시작' 15 $false $CREAM 2 'modMain.OnNormal' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'btn_Hard'   5 582 356 150  46 $DEEPRED $BROWN '고급으로 시작' 15 $false $CREAM 2 'modMain.OnHard' $true 0.5 | Out-Null
-    Add-Shp $wsGame 'title_stats' 1 295 416 400 28 $null $null '전적 0승 0패' 15 $false $CREAM 2 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt2'   5 290 300  95  42 $DEEPRED $null '2인' 15 $false $CREAM 2 'modMain.OnCount2' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt3'   5 395 300  95  42 $DEEPRED $null '3인' 15 $false $CREAM 2 'modMain.OnCount3' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt4'   5 500 300  95  42 $DEEPRED $null '4인' 15 $false $CREAM 2 'modMain.OnCount4' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt5'   5 605 300  95  42 $DEEPRED $null '5인' 15 $false $CREAM 2 'modMain.OnCount5' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Easy'   5 258 356 150  46 (RGBv 58 122 74) $null 'EASY' 15 $false $CREAM 2 'modMain.OnEasy' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Normal' 5 420 356 150  46 (RGBv 196 130 42) $null 'NORMAL' 15 $false $CREAM 2 'modMain.OnNormal' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Hard'   5 582 356 150  46 $DEEPRED $null 'HARD' 15 $false $CREAM 2 'modMain.OnHard' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Start'  5 395 412 200  48 (RGBv 240 200 90) $null '게임 시작' 17 $false $BROWN 2 'modMain.OnStartGame' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'title_stats' 1 295 468 400 26 $null $null '전적 0승 0패' 15 $false $CREAM 2 '' $true -1 | Out-Null
 
     # ===== Assets 시트 (화투패 원본 - 참고/교체용) =====
     $wsAssets.Cells.Item(1, 1).Value2 = '화투패 원본(참고용). 실제 표시는 modUI.RenderCard가 그립니다. 이미지로 교체하려면 같은 이름으로 배치하세요.'

@@ -101,15 +101,25 @@ Private Sub SetCount(n As Integer)
     modUI.HighlightCount
 End Sub
 
-' ===== 타이틀: 난이도 선택 & 시작 =====
+' ===== 타이틀: 난이도 선택 (시작은 btn_Start) =====
 Public Sub OnEasy()
-    StartWithDiff 1
+    SetDiff 1
 End Sub
 Public Sub OnNormal()
-    StartWithDiff 2
+    SetDiff 2
 End Sub
 Public Sub OnHard()
-    StartWithDiff 3
+    SetDiff 3
+End Sub
+
+Private Sub SetDiff(d As Integer)
+    On Error Resume Next
+    gDifficulty = d
+    modUI.HighlightDiff
+End Sub
+
+Public Sub OnStartGame()
+    StartWithDiff gDifficulty
 End Sub
 
 Private Sub StartWithDiff(d As Integer)

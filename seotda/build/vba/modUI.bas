@@ -19,7 +19,7 @@ End Function
 Private Function TitleShapeNames() As Variant
     TitleShapeNames = Array("title_bg", _
         "btn_Cnt2", "btn_Cnt3", "btn_Cnt4", "btn_Cnt5", _
-        "btn_Easy", "btn_Normal", "btn_Hard", "title_stats")
+        "btn_Easy", "btn_Normal", "btn_Hard", "btn_Start", "title_stats")
 End Function
 
 Public Function SeatName(seat As Integer) As String
@@ -75,6 +75,7 @@ Public Sub ShowTitleScreen()
         GS.Shapes(n).ZOrder msoBringToFront
     Next n
     HighlightCount
+    HighlightDiff
     SetText "title_stats", "전적 " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패    보유 " & Format(gMoney(0), "#,0") & "P", 15, RGB(245, 233, 200)
 End Sub
 
@@ -95,14 +96,44 @@ Public Sub HighlightCount()
             If i = gSelCount Then
                 ' 선택됨: 크림 바탕 + 진홍 글자 + 금테
                 .Fill.ForeColor.RGB = RGB(245, 233, 200)
+                .Line.Visible = msoTrue
                 .Line.Weight = 2.5
                 .Line.ForeColor.RGB = RGB(240, 200, 90)
                 .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(150, 34, 34)
             Else
-                ' 기본: 진홍 바탕 + 크림 글자 + 브라운 테
+                ' 기본: 진홍 바탕 + 크림 글자, 테두리 없음
                 .Fill.ForeColor.RGB = RGB(168, 42, 38)
-                .Line.Weight = 1.5
-                .Line.ForeColor.RGB = RGB(88, 52, 28)
+                .Line.Visible = msoFalse
+                .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(245, 233, 200)
+            End If
+        End With
+    Next i
+End Sub
+
+' 난이도 선택 표시 (인원수와 동일한 선택 스타일)
+Public Sub HighlightDiff()
+    Dim i As Integer
+    Dim names As Variant
+    names = Array("", "btn_Easy", "btn_Normal", "btn_Hard")
+    On Error Resume Next
+    For i = 1 To 3
+        With GS.Shapes(names(i))
+            .Fill.Solid
+            If i = gDifficulty Then
+                ' 선택됨: 크림 바탕 + 진홍 글자 + 금테
+                .Fill.ForeColor.RGB = RGB(245, 233, 200)
+                .Line.Visible = msoTrue
+                .Line.Weight = 2.5
+                .Line.ForeColor.RGB = RGB(240, 200, 90)
+                .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(150, 34, 34)
+            Else
+                ' 기본: 난이도별 색 바탕 + 크림 글자, 테두리 없음
+                Select Case i
+                    Case 1: .Fill.ForeColor.RGB = RGB(58, 122, 74)
+                    Case 2: .Fill.ForeColor.RGB = RGB(196, 130, 42)
+                    Case 3: .Fill.ForeColor.RGB = RGB(168, 42, 38)
+                End Select
+                .Line.Visible = msoFalse
                 .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(245, 233, 200)
             End If
         End With

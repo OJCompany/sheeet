@@ -40,7 +40,7 @@ try {
     }
 
     # ===== 시나리오 A: 2인 초급 =====
-    $xl.Run('OnCount2'); $xl.Run('OnEasy')
+    $xl.Run('OnCount2'); $xl.Run('OnEasy'); $xl.Run('OnStartGame')
     $script:base = Total (St)
     $script:pcount = 2
     Write-Host "2인 게임 시작, 총자금 기준 $($script:base)"
@@ -71,7 +71,7 @@ try {
 
     # ===== 시나리오 B: 5인 고급 =====
     $xl.Run('OnBackToTitle')
-    $xl.Run('OnCount5'); $xl.Run('OnHard')
+    $xl.Run('OnCount5'); $xl.Run('OnHard'); $xl.Run('OnStartGame')
     $script:base = Total (St)
     $script:pcount = 5
     Write-Host "5인 게임 시작, 총자금 기준 $($script:base)"
