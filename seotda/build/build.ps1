@@ -75,8 +75,9 @@ try {
     Add-Shp $wsGame 'bg_Table'   1   0   0 990 590 $GREEN (RGBv 10 50 32) '' 10 $false $WHITE 2 '' $true -1 | Out-Null
     # AI 좌석 4세트 (위치는 modUI.LayoutSeats가 인원수에 맞춰 조정)
     for ($s = 1; $s -le 4; $s++) {
-        Add-Shp $wsGame "ai${s}_name"  1 (100 + $s * 10) 16 170 22 $null $null "AI $s" 12 $true $WHITE 2 '' $false -1 | Out-Null
-        Add-Shp $wsGame "ai${s}_money" 1 (100 + $s * 10) 40 170 20 $null $null '자금  10,000P' 10 $false $GRAYTXT 2 '' $false -1 | Out-Null
+        Add-Shp $wsGame "ai${s}_avatar" 9 (60 + $s * 10) 12 46 46 (RGBv 60 160 140) $GOLD '?' 16 $true $WHITE 2 '' $false -1 | Out-Null
+        Add-Shp $wsGame "ai${s}_name"  1 (110 + $s * 10) 14 118 22 $null $null "AI $s" 12 $true $WHITE 1 '' $false -1 | Out-Null
+        Add-Shp $wsGame "ai${s}_money" 1 (110 + $s * 10) 38 118 20 $null $null '자금  10,000P' 10 $false $GRAYTXT 1 '' $false -1 | Out-Null
         Add-Shp $wsGame "ai${s}_c1"    5 (100 + $s * 10) 64  70 100 $CARDBACK $CARDBACKL "花`n鬪" 15 $true $BACKTXT 2 '' $false 0.12 | Out-Null
         Add-Shp $wsGame "ai${s}_c2"    5 (180 + $s * 10) 64  70 100 $CARDBACK $CARDBACKL "花`n鬪" 15 $true $BACKTXT 2 '' $false 0.12 | Out-Null
         Add-Shp $wsGame "ai${s}_hand"  1 (100 + $s * 10) 168 170 20 $null $null '족보' 11 $true $GOLD 2 '' $false -1 | Out-Null
@@ -87,9 +88,10 @@ try {
     Add-Shp $wsGame 'card_P1'    5 400 330  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
     Add-Shp $wsGame 'card_P2'    5 505 330  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
     Add-Shp $wsGame 'lbl_PHand'  1 395 466 205  26 $null $null '족보' 13 $true $GOLD 2 '' $false -1 | Out-Null
-    Add-Shp $wsGame 'lbl_PName'  1  60 440 180  26 $null $null '플레이어' 14 $true $WHITE 1 '' $true -1 | Out-Null
-    Add-Shp $wsGame 'lbl_PMoney' 1  60 470 200  24 $null $null '자금  10,000P' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
-    Add-Shp $wsGame 'lbl_Record' 1  60 498 200  24 $null $null '전적  0승 0패' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'player_avatar' 9 60 438 48 48 (RGBv 60 160 140) $GOLD '플' 16 $true $WHITE 2 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'lbl_PName'  1 116 438 150  22 $null $null '플레이어' 14 $true $WHITE 1 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'lbl_PMoney' 1 116 461 160  20 $null $null '자금  10,000P' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'lbl_Record' 1 116 483 160  20 $null $null '전적  0승 0패' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
     Add-Shp $wsGame 'btn_Call'    5 205 505 120  46 (RGBv 58 118 240) (RGBv 30 70 160) '콜' 15 $true $WHITE 2 'modMain.OnCall' $false 0.3 | Out-Null
     Add-Shp $wsGame 'btn_Half'    5 340 505 120  46 (RGBv 235 150 45) (RGBv 160 95 20) '하프' 15 $true $WHITE 2 'modMain.OnHalf' $false 0.3 | Out-Null
     Add-Shp $wsGame 'btn_Ddadang' 5 475 505 120  46 (RGBv 150 70 190) (RGBv 95 40 130) '따당' 15 $true $WHITE 2 'modMain.OnDdadang' $false 0.3 | Out-Null

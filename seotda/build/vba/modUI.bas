@@ -23,11 +23,14 @@ Private Function TitleShapeNames() As Variant
 End Function
 
 Public Function SeatName(seat As Integer) As String
-    If seat = 0 Then
-        SeatName = "플레이어"
-    Else
-        SeatName = "AI " & seat
-    End If
+    Select Case seat
+        Case 0: SeatName = "플레이어"
+        Case 1: SeatName = "고오니"
+        Case 2: SeatName = "악귀"
+        Case 3: SeatName = "고과앙렬"
+        Case 4: SeatName = "정마음담"
+        Case Else: SeatName = "AI " & seat
+    End Select
 End Function
 
 Public Function CardShapeName(seat As Integer, c As Integer) As String
@@ -96,11 +99,18 @@ Public Sub LayoutSeats()
         If i <= n Then
             ' 우측 족보 패널을 피해 중심 465, 간격 200으로 배치
             cx = 465 + (i - (n + 1) / 2) * 200
+            With GS.Shapes("ai" & i & "_avatar")
+                .Left = cx - 84: .Top = 12
+                .Width = 46: .Height = 46
+                .Visible = True
+            End With
+            RenderAvatar i
             With GS.Shapes("ai" & i & "_name")
-                .Left = cx - 85: .Top = 16: .Visible = True
+                .Left = cx - 32: .Top = 14: .Visible = True
+                .TextFrame2.TextRange.Text = SeatName(i)
             End With
             With GS.Shapes("ai" & i & "_money")
-                .Left = cx - 85: .Top = 40: .Visible = True
+                .Left = cx - 32: .Top = 38: .Visible = True
             End With
             With GS.Shapes("ai" & i & "_c1")
                 .Left = cx - 76: .Top = 64
@@ -116,6 +126,7 @@ Public Sub LayoutSeats()
                 .Left = cx - 85: .Top = 168: .Visible = False
             End With
         Else
+            GS.Shapes("ai" & i & "_avatar").Visible = False
             GS.Shapes("ai" & i & "_name").Visible = False
             GS.Shapes("ai" & i & "_money").Visible = False
             GS.Shapes("ai" & i & "_c1").Visible = False
@@ -195,6 +206,57 @@ End Function
 Public Sub InitDeckPile()
     On Error Resume Next
     RenderCard "deck_Pile", 0, False
+End Sub
+
+' ===== 아바타 (avatars 폴더, 없으면 단색 원 + 첫 글자) =====
+Private Function AvatarPath(seat As Integer) As String
+    On Error Resume Next
+    Dim f As String
+    If seat = 0 Then f = "player.png" Else f = "ai" & seat & ".png"
+    Dim p As String
+    p = ThisWorkbook.Path & "\avatars\" & f
+    If Dir(p) <> "" Then AvatarPath = p
+End Function
+
+Public Sub RenderAvatar(seat As Integer)
+    Dim nm As String
+    If seat = 0 Then nm = "player_avatar" Else nm = "ai" & seat & "_avatar"
+    Dim sh As Shape
+    On Error Resume Next
+    Set sh = GS.Shapes(nm)
+    On Error GoTo 0
+    If sh Is Nothing Then Exit Sub
+
+    Dim p As String
+    p = AvatarPath(seat)
+    If p <> "" Then
+        On Error Resume Next
+        Err.Clear
+        sh.Fill.UserPicture p
+        If Err.Number = 0 Then
+            sh.TextFrame2.TextRange.Text = ""
+            sh.Line.Visible = msoTrue
+            sh.Line.Weight = 1.5
+            sh.Line.ForeColor.RGB = RGB(240, 200, 90)
+            Exit Sub
+        End If
+        Err.Clear
+        On Error GoTo 0
+    End If
+    ' 폴백: 좌석별 단색 원 + 이름 첫 글자
+    Dim cols As Variant
+    cols = Array(RGB(60, 160, 140), RGB(190, 80, 80), RGB(140, 90, 190), RGB(220, 140, 50), RGB(70, 130, 180))
+    sh.Fill.Solid
+    sh.Fill.ForeColor.RGB = cols(seat)
+    sh.Line.Visible = msoTrue
+    sh.Line.Weight = 1.5
+    sh.Line.ForeColor.RGB = RGB(240, 200, 90)
+    With sh.TextFrame2.TextRange
+        .Text = Left(SeatName(seat), 1)
+        .Font.Size = 16
+        .Font.Bold = msoTrue
+        .Font.Fill.ForeColor.RGB = RGB(245, 245, 245)
+    End With
 End Sub
 
 ' ===== 카드 렌더링 =====
