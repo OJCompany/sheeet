@@ -176,12 +176,57 @@ Public Sub UpdateLabels()
     Next i
 End Sub
 
+' ===== 카드 이미지 (cards 폴더, 없으면 도형 디자인으로 대체) =====
+Private Function CardImagePath(card As Integer) As String
+    On Error Resume Next
+    Dim p As String
+    p = ThisWorkbook.Path & "\cards\" & card & ".png"
+    If Dir(p) <> "" Then CardImagePath = p
+End Function
+
+Private Function BackImagePath() As String
+    On Error Resume Next
+    Dim p As String
+    p = ThisWorkbook.Path & "\cards\back.png"
+    If Dir(p) <> "" Then BackImagePath = p
+End Function
+
+' 덱 더미에 뒷면 이미지 적용 (앱 시작 시 호출)
+Public Sub InitDeckPile()
+    On Error Resume Next
+    RenderCard "deck_Pile", 0, False
+End Sub
+
 ' ===== 카드 렌더링 =====
 Public Sub RenderCard(nm As String, card As Integer, faceUp As Boolean)
     Dim sh As Shape
     Set sh = GS.Shapes(nm)
     Dim tr As TextRange2
     Set tr = sh.TextFrame2.TextRange
+
+    ' 이미지가 있으면 그림으로 렌더
+    Dim p As String
+    If faceUp Then
+        p = CardImagePath(card)
+    Else
+        p = BackImagePath()
+    End If
+    If p <> "" Then
+        On Error Resume Next
+        Err.Clear
+        sh.Fill.UserPicture p
+        If Err.Number = 0 Then
+            tr.Text = ""
+            sh.Line.Visible = msoTrue
+            sh.Line.Weight = 1
+            sh.Line.ForeColor.RGB = RGB(40, 40, 40)
+            Exit Sub
+        End If
+        Err.Clear
+        On Error GoTo 0
+    End If
+
+    ' 이미지가 없으면 도형 디자인
     Dim small As Boolean
     small = (sh.Width < 80 And sh.Width > 10) Or (nm Like "ai*")
     sh.Line.Weight = 1.5
@@ -212,15 +257,18 @@ Public Sub RenderCard(nm As String, card As Integer, faceUp As Boolean)
     End If
 End Sub
 
-' 다이한 좌석의 카드를 어둡게
+' 다이한 좌석의 카드를 어둡게 (이미지 카드도 회색 단색으로 덮음)
 Public Sub ShowFold(seat As Integer)
     Dim c As Integer
     On Error Resume Next
     For c = 1 To 2
         With GS.Shapes(CardShapeName(seat, c))
+            .Fill.Solid
             .Fill.ForeColor.RGB = RGB(70, 70, 70)
             .Line.ForeColor.RGB = RGB(50, 50, 50)
-            .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(115, 115, 115)
+            .TextFrame2.TextRange.Text = "다이"
+            .TextFrame2.TextRange.Font.Size = 12
+            .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(140, 140, 140)
         End With
     Next c
 End Sub

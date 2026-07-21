@@ -70,6 +70,7 @@ Public Sub InitApp()
     gSelCount = 2
     modSave.LoadState
     gNumPlayers = gSelCount
+    modUI.InitDeckPile
     modUI.ShowTitleScreen
 End Sub
 
