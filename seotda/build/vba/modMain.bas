@@ -197,6 +197,11 @@ Public Sub NewRound()
     gTurn = 0
     modUI.PrepareRound
     modUI.UpdateLabels
+    ' 기본 판돈을 내는 연출
+    modUI.SetMessage "기본 판돈 " & Format(ANTE, "#,0") & "P"
+    For i = 0 To gNumPlayers - 1
+        If Not gFolded(i) Then modUI.ThrowMoney i
+    Next i
     modUI.SetMessage "패를 돌립니다..."
     modUI.DealAnimation
     modUI.ShowPlayerHandName

@@ -53,6 +53,7 @@ Public Sub ApplyAction(seat As Integer, act As String)
         gPaid(seat) = gPaid(seat) + pay
         gPot = gPot + pay
         gToAct = gToAct - 1
+        If pay > 0 Then modUI.ThrowMoney seat
 
     Case "HALF", "DDANG"
         ' 1) 콜 몫 지불
@@ -80,5 +81,6 @@ Public Sub ApplyAction(seat As Integer, act As String)
             gRaiseCount = gRaiseCount + 1
             gToAct = ActiveCount() - 1   ' 나머지 전원이 다시 응답
         End If
+        If pay > 0 Or r > 0 Then modUI.ThrowMoney seat
     End Select
 End Sub

@@ -83,7 +83,8 @@ try {
         Add-Shp $wsGame "ai${s}_hand"  1 (100 + $s * 10) 168 145 16 $null $null '족보' 11 $true $GOLD 2 '' $false -1 | Out-Null
     }
     # 중앙 열은 족보 패널을 제외한 플레이 영역(0~858)의 중심 x=430 기준
-    Add-Shp $wsGame 'deck_Pile'  5 385  36  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $true 0.12 | Out-Null
+    Add-Shp $wsGame 'deck_Pile'  5 385  36  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
+    Add-Shp $wsGame 'coin_fly'   9 430  90  26  26 $GOLD (RGBv 160 120 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
     Add-Shp $wsGame 'lbl_Pot'    1 322 172 215  30 $null $null '판돈  0P' 16 $true $GOLD 2 '' $true -1 | Out-Null
     Add-Shp $wsGame 'lbl_Msg'    5 235 208 390  48 (RGBv 8 42 27) $null '엑셀 섯다에 오신 것을 환영합니다' 13 $false $WHITE 2 '' $true 0.5 | Out-Null
     Add-Shp $wsGame 'card_P1'    5 337 300  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null

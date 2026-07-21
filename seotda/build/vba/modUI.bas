@@ -208,7 +208,30 @@ Public Sub PrepareRound()
         GS.Shapes("ai" & i & "_c2").Visible = False
         GS.Shapes("ai" & i & "_hand").Visible = False
     Next i
+    GS.Shapes("deck_Pile").Visible = False
+    GS.Shapes("coin_fly").Visible = False
     HideNextButton
+End Sub
+
+' 베팅 금액이 중앙 판돈으로 날아가는 연출
+Public Sub ThrowMoney(seat As Integer)
+    If gFast Then Exit Sub
+    On Error Resume Next
+    Dim sh As Shape
+    Set sh = GS.Shapes("coin_fly")
+    Dim x0 As Single, y0 As Single
+    If seat = 0 Then
+        x0 = 84: y0 = 448
+    Else
+        x0 = GS.Shapes("ai" & seat & "_avatar").Left + 10
+        y0 = GS.Shapes("ai" & seat & "_avatar").Top + 10
+    End If
+    sh.Left = x0
+    sh.Top = y0
+    sh.Visible = True
+    sh.ZOrder msoBringToFront
+    MoveShape sh, 417, 120, 8
+    sh.Visible = False
 End Sub
 
 ' ===== 버튼/라벨 =====
@@ -490,6 +513,8 @@ Public Sub DealAnimation()
             End If
         Next i
     Next c
+    ' 덱은 배분하는 동안만 보여준다
+    GS.Shapes("deck_Pile").Visible = True
     Dim sh As Shape
     For i = 0 To cnt - 1
         Set sh = GS.Shapes(names(i))
@@ -505,6 +530,7 @@ Public Sub DealAnimation()
         modSound.PlayCard
         MoveShape GS.Shapes(names(i)), fx(i), fy(i), IIf(gFast, 2, 10)
     Next i
+    GS.Shapes("deck_Pile").Visible = False
     ' 내 패만 공개
     FlipCard "card_P1", gCards(0, 1)
     FlipCard "card_P2", gCards(0, 2)
