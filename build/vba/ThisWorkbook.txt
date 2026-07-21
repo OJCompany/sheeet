@@ -1,0 +1,10 @@
+Private Sub Workbook_Open()
+    On Error Resume Next
+    modMain.InitApp
+End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    modMain.CleanupApp
+    ThisWorkbook.Save
+End Sub
