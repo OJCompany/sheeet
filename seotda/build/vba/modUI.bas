@@ -42,7 +42,7 @@ Public Function CardShapeName(seat As Integer, c As Integer) As String
 End Function
 
 ' 텍스트 교체 시 서식이 초기화되는 문제를 막기 위해 폰트를 함께 재적용
-Private Sub SetText(nm As String, s As String, sz As Single, col As Long)
+Private Sub SetText(nm As String, s As String, sz As Single, col As Long, Optional align As Integer = 0)
     On Error Resume Next
     With GS.Shapes(nm).TextFrame2.TextRange
         .Text = s
@@ -50,6 +50,7 @@ Private Sub SetText(nm As String, s As String, sz As Single, col As Long)
         .Font.NameFarEast = "Jua"
         .Font.Size = sz
         .Font.Fill.ForeColor.RGB = col
+        If align > 0 Then .ParagraphFormat.Alignment = align
     End With
 End Sub
 
@@ -140,39 +141,51 @@ Public Sub HighlightDiff()
     Next i
 End Sub
 
-' AI 좌석 배치: 참가 인원에 맞춰 상단에 균등 배열
+' AI 좌석 배치: 좌우 가장자리에 배치 (한게임 스타일)
+'  슬롯 순서: 1 좌상 → 2 우상 → 3 좌하 → 4 우하
+'  좌측: [아바타/이름/자금] + 오른쪽에 카드 2장 / 우측: 카드 2장 + [아바타/이름/자금]
 Public Sub LayoutSeats()
-    Dim n As Integer, i As Integer, cx As Single
+    Dim n As Integer, i As Integer
     n = gNumPlayers - 1
+    Dim ys As Variant, rs As Variant
+    ys = Array(0, 22, 22, 152, 152)                    ' 슬롯별 세로 위치
+    rs = Array(False, False, True, False, True)        ' 슬롯별 우측 여부
     For i = 1 To 4
         If i <= n Then
-            ' 우측 족보 패널을 피해 중심 465, 간격 200으로 배치
-            cx = 465 + (i - (n + 1) / 2) * 200
+            Dim y As Single, rgt As Boolean
+            Dim ax As Single, nx As Single, c1x As Single, c2x As Single, hx As Single
+            y = ys(i)
+            rgt = rs(i)
+            If rgt Then
+                c1x = 645: c2x = 720: ax = 798: nx = 782: hx = 645
+            Else
+                ax = 16: nx = 2: c1x = 78: c2x = 153: hx = 78
+            End If
             With GS.Shapes("ai" & i & "_avatar")
-                .Left = cx - 84: .Top = 12
-                .Width = 46: .Height = 46
+                .Left = ax: .Top = y + 4
+                .Width = 44: .Height = 44
                 .Visible = True
             End With
             RenderAvatar i
             With GS.Shapes("ai" & i & "_name")
-                .Left = cx - 32: .Top = 14: .Visible = True
+                .Left = nx: .Top = y + 50: .Width = 74: .Visible = True
             End With
-            SetText "ai" & i & "_name", SeatName(i), 12, RGB(245, 245, 245)
+            SetText "ai" & i & "_name", SeatName(i), 10, RGB(245, 245, 245), 2
             With GS.Shapes("ai" & i & "_money")
-                .Left = cx - 32: .Top = 38: .Visible = True
+                .Left = nx: .Top = y + 66: .Width = 74: .Visible = True
             End With
             With GS.Shapes("ai" & i & "_c1")
-                .Left = cx - 76: .Top = 64
+                .Left = c1x: .Top = y + 4
                 .Width = AI_CARD_W: .Height = AI_CARD_H
                 .Visible = False
             End With
             With GS.Shapes("ai" & i & "_c2")
-                .Left = cx + 6: .Top = 64
+                .Left = c2x: .Top = y + 4
                 .Width = AI_CARD_W: .Height = AI_CARD_H
                 .Visible = False
             End With
             With GS.Shapes("ai" & i & "_hand")
-                .Left = cx - 85: .Top = 168: .Visible = False
+                .Left = hx: .Top = y + 106: .Width = 145: .Visible = False
             End With
         Else
             GS.Shapes("ai" & i & "_avatar").Visible = False
@@ -230,9 +243,9 @@ Public Sub UpdateLabels()
     SetText "lbl_PMoney", "자금  " & Format(gMoney(0), "#,0") & "P", 11, RGB(200, 205, 210)
     SetText "lbl_Record", "전적  " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패", 11, RGB(200, 205, 210)
     For i = 1 To gNumPlayers - 1
-        txt = "자금  " & Format(gMoney(i), "#,0") & "P"
+        txt = Format(gMoney(i), "#,0") & "P"
         If gOut(i) Then txt = "탈락"
-        SetText "ai" & i & "_money", txt, 10, RGB(200, 205, 210)
+        SetText "ai" & i & "_money", txt, 10, RGB(200, 205, 210), 2
     Next i
 End Sub
 
@@ -513,7 +526,7 @@ Public Sub ShowHandNames()
     ShowPlayerHandName
     For i = 1 To gNumPlayers - 1
         If Not gFolded(i) Then
-            SetText "ai" & i & "_hand", modHand.HandLabel(gCards(i, 1), gCards(i, 2)), 11, RGB(240, 200, 90)
+            SetText "ai" & i & "_hand", modHand.HandLabel(gCards(i, 1), gCards(i, 2)), 11, RGB(240, 200, 90), 2
             GS.Shapes("ai" & i & "_hand").Visible = True
         End If
     Next i
