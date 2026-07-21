@@ -72,6 +72,7 @@ Public Sub InitApp()
     gNumPlayers = gSelCount
     modUI.InitDeckPile
     modUI.RenderAvatar 0
+    modUI.RenderTableBg
     modUI.ShowTitleScreen
 End Sub
 

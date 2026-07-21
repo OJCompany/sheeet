@@ -17,7 +17,7 @@ Private Function GS() As Worksheet
 End Function
 
 Private Function TitleShapeNames() As Variant
-    TitleShapeNames = Array("title_bg", "title_name", "title_sub", "title_cnt_lbl", _
+    TitleShapeNames = Array("title_bg", _
         "btn_Cnt2", "btn_Cnt3", "btn_Cnt4", "btn_Cnt5", _
         "btn_Easy", "btn_Normal", "btn_Hard", "title_stats")
 End Function
@@ -57,6 +57,7 @@ Public Sub ShowTitleScreen()
     Dim n As Variant
     EnableButtons False
     HideNextButton
+    RenderTitleBg
     For Each n In TitleShapeNames()
         GS.Shapes(n).Visible = True
         GS.Shapes(n).ZOrder msoBringToFront
@@ -206,6 +207,39 @@ End Function
 Public Sub InitDeckPile()
     On Error Resume Next
     RenderCard "deck_Pile", 0, False
+End Sub
+
+' ===== 배경 이미지 (bg 폴더, 없으면 기본 색상) =====
+Private Function BgPath(base As String) As String
+    On Error Resume Next
+    Dim p As String
+    p = ThisWorkbook.Path & "\bg\" & base & ".png"
+    If Dir(p) <> "" Then BgPath = p: Exit Function
+    p = ThisWorkbook.Path & "\bg\" & base & ".jpg"
+    If Dir(p) <> "" Then BgPath = p
+End Function
+
+Public Sub RenderTitleBg()
+    On Error Resume Next
+    Dim sh As Shape
+    Set sh = GS.Shapes("title_bg")
+    Dim p As String
+    p = BgPath("title")
+    If p <> "" Then
+        sh.Fill.UserPicture p
+    Else
+        sh.Fill.Solid
+        sh.Fill.ForeColor.RGB = RGB(24, 28, 40)
+    End If
+End Sub
+
+Public Sub RenderTableBg()
+    On Error Resume Next
+    Dim sh As Shape
+    Set sh = GS.Shapes("bg_Table")
+    Dim p As String
+    p = BgPath("table")
+    If p <> "" Then sh.Fill.UserPicture p
 End Sub
 
 ' ===== 아바타 (avatars 폴더, 없으면 단색 원 + 첫 글자) =====
