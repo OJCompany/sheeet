@@ -210,6 +210,7 @@ Public Sub PrepareRound()
     Next i
     GS.Shapes("deck_Pile").Visible = False
     GS.Shapes("coin_fly").Visible = False
+    UpdatePotPile
     HideNextButton
 End Sub
 
@@ -260,9 +261,32 @@ Public Sub SetMessage(s As String)
     DoEvents
 End Sub
 
+' 판돈 규모에 따라 중앙 돈더미 표시 (동전 → 지폐뭉치)
+Public Sub UpdatePotPile()
+    On Error Resume Next
+    Dim bills As Integer, coins As Integer
+    If gPot <= 0 Then
+        bills = 0: coins = 0
+    ElseIf gPot < 1000 Then
+        bills = 0: coins = 2
+    ElseIf gPot < 5000 Then
+        bills = 1: coins = 3
+    ElseIf gPot < 20000 Then
+        bills = 2: coins = 2
+    Else
+        bills = 3: coins = 3
+    End If
+    Dim i As Integer
+    For i = 1 To 3
+        GS.Shapes("pile_b" & i).Visible = (i <= bills)
+        GS.Shapes("pile_c" & i).Visible = (i <= coins)
+    Next i
+End Sub
+
 Public Sub UpdateLabels()
     Dim i As Integer, txt As String
     SetText "lbl_Pot", "판돈  " & Format(gPot, "#,0") & "P", 16, RGB(240, 200, 90)
+    UpdatePotPile
     SetText "lbl_PMoney", "자금  " & Format(gMoney(0), "#,0") & "P", 11, RGB(200, 205, 210)
     SetText "lbl_Record", "전적  " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패", 11, RGB(200, 205, 210)
     For i = 1 To gNumPlayers - 1

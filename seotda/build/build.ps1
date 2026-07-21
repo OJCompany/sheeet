@@ -85,6 +85,18 @@ try {
     # 중앙 열은 족보 패널을 제외한 플레이 영역(0~858)의 중심 x=430 기준
     Add-Shp $wsGame 'deck_Pile'  5 385  36  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
     Add-Shp $wsGame 'coin_fly'   9 430  90  26  26 $GOLD (RGBv 160 120 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
+    # 중앙 판돈 더미 (판돈 규모에 따라 modUI.UpdatePotPile이 표시 개수 조절)
+    $BILLF = RGBv 168 190 130
+    $BILLL = RGBv 100 120 70
+    $b1 = Add-Shp $wsGame 'pile_b1' 5 388 130 64 30 $BILLF $BILLL '' 10 $false $WHITE 2 '' $false 0.15
+    $b1.Rotation = -8
+    $b2 = Add-Shp $wsGame 'pile_b2' 5 410 122 64 30 $BILLF $BILLL '' 10 $false $WHITE 2 '' $false 0.15
+    $b2.Rotation = 7
+    $b3 = Add-Shp $wsGame 'pile_b3' 5 398 114 64 30 $BILLF $BILLL '' 10 $false $WHITE 2 '' $false 0.15
+    $b3.Rotation = -2
+    Add-Shp $wsGame 'pile_c1' 9 438 148 20 20 $GOLD (RGBv 160 120 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
+    Add-Shp $wsGame 'pile_c2' 9 458 142 16 16 (RGBv 230 180 60) (RGBv 150 110 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
+    Add-Shp $wsGame 'pile_c3' 9 422 154 24 24 $GOLD (RGBv 160 120 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
     Add-Shp $wsGame 'lbl_Pot'    1 322 172 215  30 $null $null '판돈  0P' 16 $true $GOLD 2 '' $true -1 | Out-Null
     Add-Shp $wsGame 'lbl_Msg'    5 235 208 390  48 (RGBv 8 42 27) $null '엑셀 섯다에 오신 것을 환영합니다' 13 $false $WHITE 2 '' $true 0.5 | Out-Null
     Add-Shp $wsGame 'card_P1'    5 337 300  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
