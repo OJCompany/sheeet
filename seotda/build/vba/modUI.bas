@@ -41,6 +41,18 @@ Public Function CardShapeName(seat As Integer, c As Integer) As String
     End If
 End Function
 
+' 텍스트 교체 시 서식이 초기화되는 문제를 막기 위해 폰트를 함께 재적용
+Private Sub SetText(nm As String, s As String, sz As Single, col As Long)
+    On Error Resume Next
+    With GS.Shapes(nm).TextFrame2.TextRange
+        .Text = s
+        .Font.Name = "Jua"
+        .Font.NameFarEast = "Jua"
+        .Font.Size = sz
+        .Font.Fill.ForeColor.RGB = col
+    End With
+End Sub
+
 Public Sub Pause(ms As Double)
     If gFast Then Exit Sub
     Dim t As Single
@@ -63,9 +75,7 @@ Public Sub ShowTitleScreen()
         GS.Shapes(n).ZOrder msoBringToFront
     Next n
     HighlightCount
-    On Error Resume Next
-    GS.Shapes("title_stats").TextFrame2.TextRange.Text = _
-        "전적 " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패    보유 " & Format(gMoney(0), "#,0") & "P"
+    SetText "title_stats", "전적 " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패    보유 " & Format(gMoney(0), "#,0") & "P", 15, RGB(245, 233, 200)
 End Sub
 
 Public Sub ShowGameScreen()
@@ -81,12 +91,19 @@ Public Sub HighlightCount()
     On Error Resume Next
     For i = 2 To 5
         With GS.Shapes("btn_Cnt" & i)
+            .Fill.Solid
             If i = gSelCount Then
-                .Line.Weight = 3
+                ' 선택됨: 크림 바탕 + 진홍 글자 + 금테
+                .Fill.ForeColor.RGB = RGB(245, 233, 200)
+                .Line.Weight = 2.5
                 .Line.ForeColor.RGB = RGB(240, 200, 90)
+                .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(150, 34, 34)
             Else
-                .Line.Weight = 1.25
-                .Line.ForeColor.RGB = RGB(40, 60, 90)
+                ' 기본: 진홍 바탕 + 크림 글자 + 브라운 테
+                .Fill.ForeColor.RGB = RGB(168, 42, 38)
+                .Line.Weight = 1.5
+                .Line.ForeColor.RGB = RGB(88, 52, 28)
+                .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(245, 233, 200)
             End If
         End With
     Next i
@@ -108,8 +125,8 @@ Public Sub LayoutSeats()
             RenderAvatar i
             With GS.Shapes("ai" & i & "_name")
                 .Left = cx - 32: .Top = 14: .Visible = True
-                .TextFrame2.TextRange.Text = SeatName(i)
             End With
+            SetText "ai" & i & "_name", SeatName(i), 12, RGB(245, 245, 245)
             With GS.Shapes("ai" & i & "_money")
                 .Left = cx - 32: .Top = 38: .Visible = True
             End With
@@ -160,8 +177,8 @@ Public Sub EnableButtons(b As Boolean)
 End Sub
 
 Public Sub ShowNextButton(caption As String)
+    SetText "btn_Next", caption, 14, RGB(245, 245, 245)
     With GS.Shapes("btn_Next")
-        .TextFrame2.TextRange.Text = caption
         .Visible = True
         .ZOrder msoBringToFront
     End With
@@ -172,19 +189,19 @@ Public Sub HideNextButton()
 End Sub
 
 Public Sub SetMessage(s As String)
-    GS.Shapes("lbl_Msg").TextFrame2.TextRange.Text = s
+    SetText "lbl_Msg", s, 13, RGB(245, 245, 245)
     DoEvents
 End Sub
 
 Public Sub UpdateLabels()
     Dim i As Integer, txt As String
-    GS.Shapes("lbl_Pot").TextFrame2.TextRange.Text = "판돈  " & Format(gPot, "#,0") & "P"
-    GS.Shapes("lbl_PMoney").TextFrame2.TextRange.Text = "자금  " & Format(gMoney(0), "#,0") & "P"
-    GS.Shapes("lbl_Record").TextFrame2.TextRange.Text = "전적  " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패"
+    SetText "lbl_Pot", "판돈  " & Format(gPot, "#,0") & "P", 16, RGB(240, 200, 90)
+    SetText "lbl_PMoney", "자금  " & Format(gMoney(0), "#,0") & "P", 11, RGB(200, 205, 210)
+    SetText "lbl_Record", "전적  " & modSave.GetWins() & "승 " & modSave.GetLosses() & "패", 11, RGB(200, 205, 210)
     For i = 1 To gNumPlayers - 1
         txt = "자금  " & Format(gMoney(i), "#,0") & "P"
         If gOut(i) Then txt = "탈락"
-        GS.Shapes("ai" & i & "_money").TextFrame2.TextRange.Text = txt
+        SetText "ai" & i & "_money", txt, 10, RGB(200, 205, 210)
     Next i
 End Sub
 
@@ -287,6 +304,8 @@ Public Sub RenderAvatar(seat As Integer)
     sh.Line.ForeColor.RGB = RGB(240, 200, 90)
     With sh.TextFrame2.TextRange
         .Text = Left(SeatName(seat), 1)
+        .Font.Name = "Jua"
+        .Font.NameFarEast = "Jua"
         .Font.Size = 16
         .Font.Bold = msoTrue
         .Font.Fill.ForeColor.RGB = RGB(245, 245, 245)
@@ -331,6 +350,8 @@ Public Sub RenderCard(nm As String, card As Integer, faceUp As Boolean)
         sh.Fill.ForeColor.RGB = RGB(150, 34, 34)
         sh.Line.ForeColor.RGB = RGB(90, 16, 16)
         tr.Text = "花" & vbLf & "鬪"
+        tr.Font.Name = "Jua"
+        tr.Font.NameFarEast = "Jua"
         tr.Font.Fill.ForeColor.RGB = RGB(230, 195, 120)
         tr.Font.Size = IIf(small, 15, 22)
         tr.Font.Bold = msoTrue
@@ -348,6 +369,8 @@ Public Sub RenderCard(nm As String, card As Integer, faceUp As Boolean)
             tr.Text = m & vbLf & nmArr(m)
             tr.Font.Fill.ForeColor.RGB = RGB(35, 35, 35)
         End If
+        tr.Font.Name = "Jua"
+        tr.Font.NameFarEast = "Jua"
         tr.Font.Size = IIf(small, 13, 20)
         tr.Font.Bold = msoTrue
     End If
@@ -363,6 +386,8 @@ Public Sub ShowFold(seat As Integer)
             .Fill.ForeColor.RGB = RGB(70, 70, 70)
             .Line.ForeColor.RGB = RGB(50, 50, 50)
             .TextFrame2.TextRange.Text = "다이"
+            .TextFrame2.TextRange.Font.Name = "Jua"
+            .TextFrame2.TextRange.Font.NameFarEast = "Jua"
             .TextFrame2.TextRange.Font.Size = 12
             .TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(140, 140, 140)
         End With
@@ -448,10 +473,8 @@ Public Sub RevealSeat(seat As Integer)
 End Sub
 
 Public Sub ShowPlayerHandName()
-    With GS.Shapes("lbl_PHand")
-        .TextFrame2.TextRange.Text = modHand.HandLabel(gCards(0, 1), gCards(0, 2))
-        .Visible = True
-    End With
+    SetText "lbl_PHand", modHand.HandLabel(gCards(0, 1), gCards(0, 2)), 13, RGB(240, 200, 90)
+    GS.Shapes("lbl_PHand").Visible = True
 End Sub
 
 Public Sub ShowHandNames()
@@ -459,10 +482,8 @@ Public Sub ShowHandNames()
     ShowPlayerHandName
     For i = 1 To gNumPlayers - 1
         If Not gFolded(i) Then
-            With GS.Shapes("ai" & i & "_hand")
-                .TextFrame2.TextRange.Text = modHand.HandLabel(gCards(i, 1), gCards(i, 2))
-                .Visible = True
-            End With
+            SetText "ai" & i & "_hand", modHand.HandLabel(gCards(i, 1), gCards(i, 2)), 11, RGB(240, 200, 90)
+            GS.Shapes("ai" & i & "_hand").Visible = True
         End If
     Next i
 End Sub

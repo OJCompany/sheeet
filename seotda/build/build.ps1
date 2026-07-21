@@ -29,8 +29,8 @@ function Add-Shp {
         $tr = $sh.TextFrame2.TextRange
         $tr.Text = $text
         $f = $tr.Font
-        $f.Name = '맑은 고딕'
-        $f.NameFarEast = '맑은 고딕'
+        $f.Name = 'Jua'
+        $f.NameFarEast = 'Jua'
         $f.Size = $fsize
         $f.Bold = $(if ($bold) { -1 } else { 0 })
         $f.Fill.ForeColor.RGB = [int]$fcolor
@@ -107,15 +107,19 @@ try {
 
     # 타이틀 오버레이 (맨 위 z-order) - 배경 이미지는 실행 시 modUI.RenderTitleBg가 채움
     # 로고(상단 중앙)와 하단 중앙 카드를 피해 중앙 빈 영역(y300~450)에 버튼 배치
+    # 배경 이미지 톤에 맞춘 팔레트: 크림 / 진홍(카드 빨강) / 다크브라운(로고 테두리)
+    $CREAM = RGBv 245 233 200
+    $DEEPRED = RGBv 168 42 38
+    $BROWN = RGBv 88 52 28
     Add-Shp $wsGame 'title_bg'   1   0   0 990 590 (RGBv 24 28 40) $null '' 10 $false $WHITE 2 '' $true -1 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt2'   5 290 300  95  40 (RGBv 45 70 105) (RGBv 40 60 90) '2인' 13 $true $WHITE 2 'modMain.OnCount2' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt3'   5 395 300  95  40 (RGBv 45 70 105) (RGBv 40 60 90) '3인' 13 $true $WHITE 2 'modMain.OnCount3' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt4'   5 500 300  95  40 (RGBv 45 70 105) (RGBv 40 60 90) '4인' 13 $true $WHITE 2 'modMain.OnCount4' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Cnt5'   5 605 300  95  40 (RGBv 45 70 105) (RGBv 40 60 90) '5인' 13 $true $WHITE 2 'modMain.OnCount5' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Easy'   5 258 352 150  44 (RGBv 70 170 90) (RGBv 30 110 55) '초급으로 시작' 13 $true $WHITE 2 'modMain.OnEasy' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Normal' 5 420 352 150  44 (RGBv 235 150 45) (RGBv 160 95 20) '중급으로 시작' 13 $true $WHITE 2 'modMain.OnNormal' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Hard'   5 582 352 150  44 (RGBv 205 70 70) (RGBv 130 35 35) '고급으로 시작' 13 $true $WHITE 2 'modMain.OnHard' $true 0.3 | Out-Null
-    Add-Shp $wsGame 'title_stats' 1 295 410 400 26 $null $null '전적 0승 0패' 13 $true $WHITE 2 '' $true -1 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt2'   5 290 300  95  42 $DEEPRED $BROWN '2인' 15 $false $CREAM 2 'modMain.OnCount2' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt3'   5 395 300  95  42 $DEEPRED $BROWN '3인' 15 $false $CREAM 2 'modMain.OnCount3' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt4'   5 500 300  95  42 $DEEPRED $BROWN '4인' 15 $false $CREAM 2 'modMain.OnCount4' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Cnt5'   5 605 300  95  42 $DEEPRED $BROWN '5인' 15 $false $CREAM 2 'modMain.OnCount5' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Easy'   5 258 356 150  46 (RGBv 58 122 74) $BROWN '초급으로 시작' 15 $false $CREAM 2 'modMain.OnEasy' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Normal' 5 420 356 150  46 (RGBv 196 130 42) $BROWN '중급으로 시작' 15 $false $CREAM 2 'modMain.OnNormal' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Hard'   5 582 356 150  46 $DEEPRED $BROWN '고급으로 시작' 15 $false $CREAM 2 'modMain.OnHard' $true 0.5 | Out-Null
+    Add-Shp $wsGame 'title_stats' 1 295 416 400 28 $null $null '전적 0승 0패' 15 $false $CREAM 2 '' $true -1 | Out-Null
 
     # ===== Assets 시트 (화투패 원본 - 참고/교체용) =====
     $wsAssets.Cells.Item(1, 1).Value2 = '화투패 원본(참고용). 실제 표시는 modUI.RenderCard가 그립니다. 이미지로 교체하려면 같은 이름으로 배치하세요.'
