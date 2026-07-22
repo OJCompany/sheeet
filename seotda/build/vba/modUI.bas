@@ -210,6 +210,7 @@ Public Sub PrepareRound()
     Next i
     GS.Shapes("deck_Pile").Visible = False
     GS.Shapes("coin_fly").Visible = False
+    GS.Shapes("rank_panel").Visible = False
     UpdatePotPile
     HideNextButton
 End Sub
@@ -245,7 +246,7 @@ Public Sub EnableButtons(b As Boolean)
 End Sub
 
 Public Sub ShowNextButton(caption As String)
-    SetText "btn_Next", caption, 14, RGB(245, 245, 245)
+    SetText "btn_Next", caption, 15, RGB(88, 52, 28)
     With GS.Shapes("btn_Next")
         .Visible = True
         .ZOrder msoBringToFront
@@ -569,6 +570,70 @@ End Sub
 Public Sub ShowPlayerHandName()
     SetText "lbl_PHand", modHand.HandLabel(gCards(0, 1), gCards(0, 2)), 13, RGB(240, 200, 90)
     GS.Shapes("lbl_PHand").Visible = True
+    UpdateRankPanel
+End Sub
+
+' 내 패 옆 족보 랭킹 창: 내 등수를 강조하고 그 아래 족보들을 보여준다 (한게임 스타일)
+Public Sub UpdateRankPanel()
+    On Error Resume Next
+    Dim vals As Variant
+    vals = Array(1000, 910, 905, 810, 809, 808, 807, 806, 805, 804, 803, 802, 801, _
+                 750, 740, 730, 720, 710, 700, _
+                 109, 108, 107, 106, 105, 104, 103, 102, 101, 100)
+    Const TOTAL As Integer = 29
+    Const WIN As Integer = 7                     ' 표시 줄 수 (헤더 제외)
+
+    Dim r As Integer, idx As Integer, i As Integer
+    r = modHand.HandRank(gCards(0, 1), gCards(0, 2))
+    idx = 0
+    For i = 0 To TOTAL - 1
+        If vals(i) = r Then idx = i: Exit For
+    Next i
+
+    ' 내 등수부터 아래로 보여주되, 바닥에 걸리면 창을 위로 당긴다
+    Dim s As Integer
+    s = idx
+    If s > TOTAL - WIN Then s = TOTAL - WIN
+
+    Dim txt As String, ln As String
+    Dim lineLen(0 To WIN) As Integer
+    txt = "내 족보  " & (idx + 1) & "위 / " & TOTAL
+    lineLen(0) = Len(txt)
+    For i = 0 To WIN - 1
+        If s + i = idx Then
+            ln = "▶ " & (s + i + 1) & ". " & modHand.HandName(CInt(vals(s + i)))
+        Else
+            ln = "     " & (s + i + 1) & ". " & modHand.HandName(CInt(vals(s + i)))
+        End If
+        txt = txt & vbLf & ln
+        lineLen(i + 1) = Len(ln)
+    Next i
+
+    With GS.Shapes("rank_panel").TextFrame2.TextRange
+        .Text = txt
+        .Font.Name = "Jua"
+        .Font.NameFarEast = "Jua"
+        .Font.Size = 10
+        .Font.Bold = msoFalse
+        .ParagraphFormat.Alignment = msoAlignLeft
+        Dim pos As Long
+        pos = 1
+        .Characters(pos, lineLen(0)).Font.Fill.ForeColor.RGB = RGB(245, 233, 200)
+        pos = pos + lineLen(0) + 1
+        For i = 0 To WIN - 1
+            If s + i = idx Then
+                .Characters(pos, lineLen(i + 1)).Font.Fill.ForeColor.RGB = RGB(240, 200, 90)
+                .Characters(pos, lineLen(i + 1)).Font.Bold = msoTrue
+            Else
+                .Characters(pos, lineLen(i + 1)).Font.Fill.ForeColor.RGB = RGB(170, 185, 178)
+            End If
+            pos = pos + lineLen(i + 1) + 1
+        Next i
+    End With
+    With GS.Shapes("rank_panel")
+        .Visible = True
+        .ZOrder msoBringToFront
+    End With
 End Sub
 
 Public Sub ShowHandNames()

@@ -68,6 +68,11 @@ try {
     $CARDBACK  = RGBv 150 34 34
     $CARDBACKL = RGBv 90 16 16
     $BACKTXT   = RGBv 230 195 120
+    # 공통 팔레트 (타이틀 배경 이미지 톤): 크림 / 진홍(카드 빨강) / 다크브라운(로고 테두리)
+    $CREAM   = RGBv 245 233 200
+    $DEEPRED = RGBv 168 42 38
+    $BROWN   = RGBv 88 52 28
+    $AMBER   = RGBv 196 130 42
 
     # ===== Game 시트 =====
     $wsGame.Cells.Interior.Color = $DARKGREEN
@@ -82,7 +87,7 @@ try {
         Add-Shp $wsGame "ai${s}_c2"    5 (180 + $s * 10) 64  70 100 $CARDBACK $CARDBACKL "花`n鬪" 15 $true $BACKTXT 2 '' $false 0.12 | Out-Null
         Add-Shp $wsGame "ai${s}_hand"  1 (100 + $s * 10) 168 145 16 $null $null '족보' 11 $true $GOLD 2 '' $false -1 | Out-Null
     }
-    # 중앙 열은 족보 패널을 제외한 플레이 영역(0~858)의 중심 x=430 기준
+    # 중앙 열은 좌우 AI 좌석 사이 플레이 영역의 중심 x=430 기준
     Add-Shp $wsGame 'deck_Pile'  5 385  36  90 130 $CARDBACK $CARDBACKL "花`n鬪" 22 $true $BACKTXT 2 '' $false 0.12 | Out-Null
     Add-Shp $wsGame 'coin_fly'   9 430  90  26  26 $GOLD (RGBv 160 120 30) '' 10 $false $WHITE 2 '' $false -1 | Out-Null
     # 중앙 판돈 더미 (판돈 규모에 따라 modUI.UpdatePotPile이 표시 개수 조절)
@@ -106,25 +111,21 @@ try {
     Add-Shp $wsGame 'lbl_PName'  1 116 438 150  22 $null $null '플레이어' 14 $true $WHITE 1 '' $true -1 | Out-Null
     Add-Shp $wsGame 'lbl_PMoney' 1 116 461 160  20 $null $null '자금  10,000P' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
     Add-Shp $wsGame 'lbl_Record' 1 116 483 160  20 $null $null '전적  0승 0패' 11 $false $GRAYTXT 1 '' $true -1 | Out-Null
-    Add-Shp $wsGame 'btn_Call'    5 205 505 120  46 (RGBv 58 118 240) (RGBv 30 70 160) '콜' 15 $true $WHITE 2 'modMain.OnCall' $false 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Half'    5 340 505 120  46 (RGBv 235 150 45) (RGBv 160 95 20) '하프' 15 $true $WHITE 2 'modMain.OnHalf' $false 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Ddadang' 5 475 505 120  46 (RGBv 150 70 190) (RGBv 95 40 130) '따당' 15 $true $WHITE 2 'modMain.OnDdadang' $false 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Die'     5 610 505 120  46 (RGBv 205 70 70) (RGBv 130 35 35) '다이' 15 $true $WHITE 2 'modMain.OnDie' $false 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Next'    5 745 505 150  46 (RGBv 70 170 90) (RGBv 30 110 55) '다음 판' 14 $true $WHITE 2 'modMain.OnNextRound' $false 0.3 | Out-Null
-    Add-Shp $wsGame 'btn_Title'   5 870  20 100  34 (RGBv 90 100 110) (RGBv 50 58 66) '타이틀' 11 $true $WHITE 2 'modMain.OnBackToTitle' $true 0.3 | Out-Null
+    # 액션 버튼: 타이틀과 동일한 알약형(0.5)·무테두리·팔레트, 플레이 영역(0~858) 중앙 정렬
+    Add-Shp $wsGame 'btn_Call'    5 192 505 110  46 $GOLD $null '콜' 15 $false $BROWN 2 'modMain.OnCall' $false 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Half'    5 314 505 110  46 $AMBER $null '하프' 15 $false $CREAM 2 'modMain.OnHalf' $false 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Ddadang' 5 436 505 110  46 $DEEPRED $null '따당' 15 $false $CREAM 2 'modMain.OnDdadang' $false 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Die'     5 558 505 110  46 (RGBv 85 92 100) $null '다이' 15 $false $CREAM 2 'modMain.OnDie' $false 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Next'    5 330 505 200  46 $GOLD $null '다음 판' 15 $false $BROWN 2 'modMain.OnNextRound' $false 0.5 | Out-Null
+    Add-Shp $wsGame 'btn_Title'   5 872  18 100  34 (RGBv 60 50 40) $null '타이틀' 11 $false $CREAM 2 'modMain.OnBackToTitle' $true 0.5 | Out-Null
 
-    # 우측 족보 패널
-    $jokboText = "족보 순위`n──────`n38광땡`n18·13광땡`n장땡 ~ 1땡`n알리 (1·2)`n독사 (1·4)`n구삥 (1·9)`n장삥 (1·10)`n장사 (4·10)`n세륙 (4·6)`n갑오 ~ 1끗`n망통`n──────`n땡잡이 3·7`n: 1~9땡 잡음`n암행어사 4·7열`n: 광땡 잡음`n구사 4·9`n: 알리↓ 재경기"
-    $jp = Add-Shp $wsGame 'jokbo_panel' 5 858 64 122 420 (RGBv 8 42 27) (RGBv 60 130 90) $jokboText 9.5 $false (RGBv 215 222 218) 1 '' $true 0.08
-    $jp.TextFrame2.VerticalAnchor = 1   # 위쪽 정렬
-    $jp | Out-Null
+    # 내 패 옆 족보 랭킹 패널 (내용은 modUI.UpdateRankPanel이 채움 - 내 등수 + 아래 족보)
+    $rp = Add-Shp $wsGame 'rank_panel' 5 545 300 185 130 (RGBv 8 42 27) (RGBv 60 130 90) '' 10 $false (RGBv 215 222 218) 1 '' $false 0.08
+    $rp.TextFrame2.VerticalAnchor = 1   # 위쪽 정렬
+    $rp | Out-Null
 
     # 타이틀 오버레이 (맨 위 z-order) - 배경 이미지는 실행 시 modUI.RenderTitleBg가 채움
     # 로고(상단 중앙)와 하단 중앙 카드를 피해 중앙 빈 영역(y300~450)에 버튼 배치
-    # 배경 이미지 톤에 맞춘 팔레트: 크림 / 진홍(카드 빨강) / 다크브라운(로고 테두리)
-    $CREAM = RGBv 245 233 200
-    $DEEPRED = RGBv 168 42 38
-    $BROWN = RGBv 88 52 28
     Add-Shp $wsGame 'title_bg'   1   0   0 990 590 (RGBv 24 28 40) $null '' 10 $false $WHITE 2 '' $true -1 | Out-Null
     Add-Shp $wsGame 'btn_Cnt2'   5 290 300  95  42 $DEEPRED $null '2인' 15 $false $CREAM 2 'modMain.OnCount2' $true 0.5 | Out-Null
     Add-Shp $wsGame 'btn_Cnt3'   5 395 300  95  42 $DEEPRED $null '3인' 15 $false $CREAM 2 'modMain.OnCount3' $true 0.5 | Out-Null
