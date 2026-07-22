@@ -524,15 +524,18 @@ function pxCells(size) {
   const pcol = PX.grid.col + size + 3;
   return {
     pcol: pcol,
-    banner: { row: 2, col: 2, width: size + 2 },
+    // 배너는 패널 직전까지 넓게 (긴 한글 문구가 잘리지 않게)
+    banner: { row: 2, col: 2, width: pcol - 3 },
+    timer: { row: 2, col: pcol }, // 배너 옆 남는 공간 = 실시간 카운트다운
     legend: { row: 3, col: PX.grid.col },
     nickLabel: { row: 5, col: pcol }, nick: { row: 6, col: pcol },
     roundLabel: { row: 8, col: pcol }, round: { row: 9, col: pcol },
     scoreLabel: { row: 11, col: pcol }, score: { row: 12, col: pcol },
     startLabel: { row: 14, col: pcol }, start: { row: 15, col: pcol },
     stateLabel: { row: 17, col: pcol }, state: { row: 18, col: pcol },
-    // 갤러리는 패널(18행)보다 아래에서 시작
-    galleryRow: Math.max(PX.grid.row + size + 3, 21),
+    doneLabel: { row: 20, col: pcol }, done: { row: 21, col: pcol },
+    // 갤러리는 패널(21행)보다 아래에서 시작
+    galleryRow: Math.max(PX.grid.row + size + 3, 24),
   };
 }
 
@@ -550,17 +553,19 @@ function pxPaintFrame(sheet, size) {
 /** 우측 패널 라벨·배경 복구 — 플레이어가 실수로 칠하거나 지워도 라운드마다 원상복귀 */
 function pxFixPanel(sheet, c) {
   const labels = [
-    [c.nickLabel, '1️⃣ 내 닉네임 →'],
+    [c.nickLabel, '1️⃣ 내 닉네임 ↓'],
     [c.roundLabel, '라운드'],
     [c.scoreLabel, '내 점수'],
-    [c.startLabel, '라운드 시작'],
+    [c.startLabel, '라운드 시작 ↓'],
     [c.stateLabel, '상태'],
+    [c.doneLabel, '✅ 다 그렸으면 ↓'],
   ];
   labels.forEach(([p, txt]) =>
-    sheet.getRange(p.row, p.col).setValue(txt).setFontWeight('bold').setBackground('#FFFFFF'));
-  [c.round, c.score, c.state].forEach(p =>
-    sheet.getRange(p.row, p.col).setBackground('#FFFFFF'));
-  sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW);
+    sheet.getRange(p.row, p.col).setValue(txt)
+      .setFontWeight('bold').setBackground('#FFFFFF').setFontColor('#000000'));
+  [c.round, c.score, c.state, c.done].forEach(p =>
+    sheet.getRange(p.row, p.col).setBackground('#FFFFFF').setFontColor('#000000'));
+  sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW).setFontColor('#000000');
 }
 
 function buildPixelRoom(roomId, n, opts) {
@@ -603,26 +608,28 @@ function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
     sheet.insertRowsAfter(sheet.getMaxRows(), needRows - sheet.getMaxRows());
   }
 
-  // 팔레트 조건부 서식: 숫자를 치면 그 색으로 칠해지고 숫자는 숨겨진다
-  const region = sheet.getRange(1, 1, 80, 40);
+  // 팔레트 조건부 서식(숫자 입력=색칠, 숫자 숨김)은 캔버스 안쪽에만 적용.
+  // 시트 전체에 걸면 패널의 점수 숫자(1~5점)까지 색으로 가려지는 사고가 난다.
+  const canvas = sheet.getRange(PX.grid.row, PX.grid.col, size, size);
   const rules = [];
   for (let v = 1; v <= 5; v++) {
     rules.push(SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo(String(v))
       .setBackground(PX.colors[v])
       .setFontColor(PX.colors[v])
-      .setRanges([region])
+      .setRanges([canvas])
       .build());
   }
   sheet.setConditionalFormatRules(rules);
 
   // 배너 + 팔레트 안내
   sheet.getRange(c.banner.row, c.banner.col, 1, c.banner.width).merge();
-  sheet.setRowHeight(2, 34);
+  sheet.setRowHeight(2, 46);
   sheet.getRange(c.banner.row, c.banner.col)
-    .setValue('👋 닉네임 입력 후, 아무나 [라운드 시작]을 체크하면 게임이 시작됩니다')
+    .setValue('👋 닉네임 입력 → 아무나 [라운드 시작] 체크!')
     .setFontWeight('bold').setFontSize(12)
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setWrap(true) // 긴 문구는 두 줄로 — 잘리지 않는다
     .setBackground('#E8F5E9');
   // 팔레트 견본: 이 칸들을 복사해 붙여넣거나, 채우기 색으로 직접 칠한다
   for (let v = 1; v <= diff.colors; v++) {
@@ -650,6 +657,9 @@ function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
   sheet.getRange(c.score.row, c.score.col).setValue(0);
   sheet.getRange(c.start.row, c.start.col).insertCheckboxes();
   sheet.getRange(c.state.row, c.state.col).setValue('대기 중');
+  sheet.getRange(c.done.row, c.done.col).insertCheckboxes();
+  sheet.getRange(c.timer.row, c.timer.col)
+    .setFontSize(16).setFontWeight('bold').setFontColor('#D84315');
   // 셀 크기: 캔버스·갤러리 전부 동일한 30px 정사각 (채점 때 그림이 달라 보이지 않게)
   sheet.setColumnWidths(c.pcol + 2, size + 2, 30);              // 오른쪽 갤러리 블록
   sheet.setRowHeights(c.galleryRow, 3 * (size + 3) + 4, 30);    // 갤러리 행 전체
@@ -685,6 +695,19 @@ function handlePixelEdit(e, room, roomId) {
     return;
   }
 
+  // "다 그렸어요" 확정 체크 — 그리기 시간에만 유효, 전원 체크 시 즉시 다음 단계
+  if (r === c.done.row && col === c.done.col) {
+    if (e.value !== 'TRUE') return;
+    if (room.phase !== 'draw') {
+      e.range.setValue(false);
+      return;
+    }
+    if (!room.doneFlags) room.doneFlags = room.fileIds.map(() => false);
+    room.doneFlags[srcIdx] = true;
+    sheet.getRange(c.state.row, c.state.col).setValue('✅ 제출 완료!');
+    return;
+  }
+
   // 라운드 시작 체크박스
   if (r === c.start.row && col === c.start.col && e.value === 'TRUE') {
     e.range.setValue(false);
@@ -711,6 +734,47 @@ function runPixelRound(roomId, room) {
   const bannerAll = (msg, colr) => setAll(s => {
     s.getRange(c.banner.row, c.banner.col).setValue(msg).setFontColor(colr || '#000000');
   });
+  const setTimerAll = txt => setAll(s =>
+    s.getRange(c.timer.row, c.timer.col).setValue(txt));
+
+  /**
+   * 실시간 카운트다운 — 평소 5초 간격, 마지막 10초는 1초 간격 + 빨간 강조.
+   * checkAllDone이면 전원 제출 시 조기 종료.
+   * (시트 동기화 왕복이 0.5~1초라 1초 표시가 가끔 숫자를 건너뛸 수 있음)
+   */
+  const countdown = (ms, emoji, checkAllDone) => {
+    const end = Date.now() + ms;
+    let urgent = false;
+    while (true) {
+      const left = end - Date.now();
+      if (left <= 0) break;
+      const secs = Math.ceil(left / 1000);
+
+      if (secs <= 10 && !urgent) {
+        // 막판 강조 모드: 빨간 배경 + 흰 글씨 + 큰 글씨
+        urgent = true;
+        setAll(s => s.getRange(c.timer.row, c.timer.col)
+          .setFontColor('#FFFFFF').setBackground(FLASH_RED).setFontSize(20));
+        if (checkAllDone) bannerAll('⏰ 10초 남았습니다! 서두르세요!', FLASH_RED);
+      }
+      setTimerAll(urgent ? '⏰ ' + secs + '초!' : emoji + ' ' + secs + '초');
+      SpreadsheetApp.flush();
+      Utilities.sleep(Math.min(urgent ? 1000 : 5000, Math.max(left, 1)));
+
+      if (checkAllDone) {
+        const fr = updateRoom(roomId, () => {});
+        if (fr && fr.doneFlags && fr.doneFlags.length && fr.doneFlags.every(Boolean)) {
+          bannerAll('🙌 전원 제출 완료! 바로 넘어갑니다', '#188038');
+          SpreadsheetApp.flush();
+          Utilities.sleep(1200);
+          break;
+        }
+      }
+    }
+    // 타이머 스타일 원상복귀
+    setAll(s => s.getRange(c.timer.row, c.timer.col)
+      .setValue('').setFontColor('#D84315').setBackground('#FFFFFF').setFontSize(16));
+  };
 
   try {
     // 그림 선택 (라운드 간 중복 방지)
@@ -737,9 +801,8 @@ function runPixelRound(roomId, room) {
       s.getRange(c.state.row, c.state.col).setValue('👀 암기!');
       s.getRange(PX.grid.row, PX.grid.col, size, size).clearContent().setBackgrounds(answerBg);
     });
-    bannerAll('👀 라운드 ' + roundNo + ' — 이 그림을 10초 동안 기억하세요!', '#D84315');
-    SpreadsheetApp.flush();
-    Utilities.sleep(PX.memorizeMs);
+    bannerAll('👀 라운드 ' + roundNo + ' — 이 그림을 기억하세요!', '#D84315');
+    countdown(PX.memorizeMs, '👀', false);
 
     // 2) 지우고 60초 그리기 (테두리·프레임 재도색 — 붙여넣기가 지워놨을 수 있음)
     setAll(s => {
@@ -748,12 +811,14 @@ function runPixelRound(roomId, room) {
       pxPaintFrame(s, size);
       s.getRange(c.state.row, c.state.col).setValue('🎨 그리는 중');
     });
-    bannerAll('🖌 60초! 팔레트 칸을 복사해 붙여넣거나, 채우기 색으로 칠해 그리세요! (숫자 입력도 OK)', '#1565C0');
-    SpreadsheetApp.flush();
-    Utilities.sleep(PX.drawMs - 15000);
-    bannerAll('⏰ 15초 남았습니다!', '#D84315');
-    SpreadsheetApp.flush();
-    Utilities.sleep(15000);
+    setAll(s => s.getRange(c.done.row, c.done.col).setValue(false));
+    updateRoom(roomId, rm => {
+      rm.phase = 'draw';
+      rm.doneFlags = room.fileIds.map(() => false);
+    });
+    bannerAll('🖌 기억대로 그리세요! 다 그리면 [다 그렸으면] 체크 — 전원 체크하면 바로 채점', '#1565C0');
+    countdown(PX.drawMs, '🎨', true);
+    updateRoom(roomId, rm => { rm.phase = 'running'; });
 
     // 3) 그림 수거 + 갤러리 20초
     const fresh = updateRoom(roomId, () => {}); // 닉네임 최신화
@@ -779,9 +844,8 @@ function runPixelRound(roomId, room) {
       });
       s.getRange(c.state.row, c.state.col).setValue('👀 감상 타임');
     });
-    bannerAll('👀 다들 어떻게 그렸을까? 20초간 감상하세요… 누가 1등일까요?', '#6A1B9A');
-    SpreadsheetApp.flush();
-    Utilities.sleep(PX.galleryMs);
+    bannerAll('👀 다들 어떻게 그렸을까? 누가 1등일까요?', '#6A1B9A');
+    countdown(PX.galleryMs, '👀', false);
 
     // 4) 정답 공개 + 채점
     // 채점: 정답 픽셀과 그린 픽셀의 합집합 기준 일치율 (빈 판 = 0%)
