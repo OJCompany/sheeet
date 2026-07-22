@@ -424,9 +424,7 @@ Public Sub RenderCard(nm As String, card As Integer, faceUp As Boolean)
         sh.Fill.UserPicture p
         If Err.Number = 0 Then
             tr.Text = ""
-            sh.Line.Visible = msoTrue
-            sh.Line.Weight = 1
-            sh.Line.ForeColor.RGB = RGB(40, 40, 40)
+            sh.Line.Visible = msoFalse
             Exit Sub
         End If
         Err.Clear
@@ -476,7 +474,7 @@ Public Sub ShowFold(seat As Integer)
         With GS.Shapes(CardShapeName(seat, c))
             .Fill.Solid
             .Fill.ForeColor.RGB = RGB(70, 70, 70)
-            .Line.ForeColor.RGB = RGB(50, 50, 50)
+            .Line.Visible = msoFalse
             .TextFrame2.TextRange.Text = "다이"
             .TextFrame2.TextRange.Font.Name = "Jua"
             .TextFrame2.TextRange.Font.NameFarEast = "Jua"
