@@ -467,15 +467,14 @@ const PX = {
   frame: '#212121',
   colors: { 1: '#E53935', 2: '#1E88E5', 3: '#FDD835', 4: '#43A047', 5: '#8E24AA' },
   colorNames: '1=빨강 2=파랑 3=노랑 4=초록 5=보라',
-  memorizeMs: 10000,
-  drawMs: 60000,
-  galleryMs: 20000,
+  galleryMs: 10000, // 감상 타임 — 남의 그림에 관심은 10초면 충분하다
 };
 
+// 난이도별 시간: 판이 클수록 외울 것도 그릴 것도 많다
 const PX_DIFFS = {
-  easy: { size: 8, colors: 3, label: '쉬움 (8×8·3색)' },
-  normal: { size: 10, colors: 4, label: '보통 (10×10·4색)' },
-  hard: { size: 12, colors: 5, label: '어려움 (12×12·5색)' },
+  easy: { size: 8, colors: 3, memorizeMs: 8000, drawMs: 40000, label: '쉬움 (8×8·3색)' },
+  normal: { size: 10, colors: 4, memorizeMs: 10000, drawMs: 60000, label: '보통 (10×10·4색)' },
+  hard: { size: 12, colors: 5, memorizeMs: 15000, drawMs: 90000, label: '어려움 (12×12·5색)' },
 };
 
 // 도트 그림 데이터: '0'=빈칸, 숫자=팔레트 색
@@ -738,28 +737,34 @@ function runPixelRound(roomId, room) {
     s.getRange(c.timer.row, c.timer.col).setValue(txt));
 
   /**
-   * 실시간 카운트다운 — 평소 5초 간격, 마지막 10초는 1초 간격 + 빨간 강조.
-   * checkAllDone이면 전원 제출 시 조기 종료.
-   * (시트 동기화 왕복이 0.5~1초라 1초 표시가 가끔 숫자를 건너뛸 수 있음)
+   * 조용한 타이머 — 평소에는 숫자를 표시하지 않는다.
+   * (시트 갱신 왕복이 0.5~1초라 초 단위 카운트가 씹혀 보이는 문제 → 아예 안 세는 걸로)
+   * 남은 시간 10초·5초 시점에만 빨간 경고를 띄운다. checkAllDone이면 전원 제출 시 조기 종료.
    */
-  const countdown = (ms, emoji, checkAllDone) => {
+  const countdown = (ms, checkAllDone) => {
     const end = Date.now() + ms;
-    let urgent = false;
+    let warned10 = false;
+    let warned5 = false;
     while (true) {
       const left = end - Date.now();
       if (left <= 0) break;
-      const secs = Math.ceil(left / 1000);
 
-      if (secs <= 10 && !urgent) {
-        // 막판 강조 모드: 빨간 배경 + 흰 글씨 + 큰 글씨
-        urgent = true;
+      if (!warned10 && left <= 10500) {
+        warned10 = true;
         setAll(s => s.getRange(c.timer.row, c.timer.col)
+          .setValue('⏰ ' + Math.ceil(left / 1000) + '초!')
           .setFontColor('#FFFFFF').setBackground(FLASH_RED).setFontSize(20));
-        if (checkAllDone) bannerAll('⏰ 10초 남았습니다! 서두르세요!', FLASH_RED);
+        if (checkAllDone) bannerAll('⏰ 곧 끝납니다! 서두르세요!', FLASH_RED);
+        SpreadsheetApp.flush();
+      } else if (warned10 && !warned5 && left <= 5500) {
+        warned5 = true;
+        setTimerAll('⏰ ' + Math.ceil(left / 1000) + '초!');
+        SpreadsheetApp.flush();
       }
-      setTimerAll(urgent ? '⏰ ' + secs + '초!' : emoji + ' ' + secs + '초');
-      SpreadsheetApp.flush();
-      Utilities.sleep(Math.min(urgent ? 1000 : 5000, Math.max(left, 1)));
+
+      // 다음 경계(10초 전·5초 전·종료)까지 자되, done 폴링 때문에 최대 5초 단위로 끊는다
+      const boundary = left > 10500 ? left - 10000 : left > 5500 ? left - 5000 : left;
+      Utilities.sleep(Math.max(500, Math.min(checkAllDone ? 5000 : boundary, boundary)));
 
       if (checkAllDone) {
         const fr = updateRoom(roomId, () => {});
@@ -801,8 +806,8 @@ function runPixelRound(roomId, room) {
       s.getRange(c.state.row, c.state.col).setValue('👀 암기!');
       s.getRange(PX.grid.row, PX.grid.col, size, size).clearContent().setBackgrounds(answerBg);
     });
-    bannerAll('👀 라운드 ' + roundNo + ' — 이 그림을 기억하세요!', '#D84315');
-    countdown(PX.memorizeMs, '👀', false);
+    bannerAll('👀 라운드 ' + roundNo + ' — 이 그림을 ' + Math.round(diff.memorizeMs / 1000) + '초 동안 기억하세요!', '#D84315');
+    countdown(diff.memorizeMs, false);
 
     // 2) 지우고 60초 그리기 (테두리·프레임 재도색 — 붙여넣기가 지워놨을 수 있음)
     setAll(s => {
@@ -816,8 +821,8 @@ function runPixelRound(roomId, room) {
       rm.phase = 'draw';
       rm.doneFlags = room.fileIds.map(() => false);
     });
-    bannerAll('🖌 기억대로 그리세요! 다 그리면 [다 그렸으면] 체크 — 전원 체크하면 바로 채점', '#1565C0');
-    countdown(PX.drawMs, '🎨', true);
+    bannerAll('🖌 ' + Math.round(diff.drawMs / 1000) + '초! 기억대로 그리세요. 다 그리면 [다 그렸으면] 체크 — 전원 체크하면 바로 채점', '#1565C0');
+    countdown(diff.drawMs, true);
     updateRoom(roomId, rm => { rm.phase = 'running'; });
 
     // 3) 그림 수거 + 갤러리 20초
@@ -845,7 +850,7 @@ function runPixelRound(roomId, room) {
       s.getRange(c.state.row, c.state.col).setValue('👀 감상 타임');
     });
     bannerAll('👀 다들 어떻게 그렸을까? 누가 1등일까요?', '#6A1B9A');
-    countdown(PX.galleryMs, '👀', false);
+    countdown(PX.galleryMs, false);
 
     // 4) 정답 공개 + 채점
     // 채점: 정답 픽셀과 그린 픽셀의 합집합 기준 일치율 (빈 판 = 0%)
