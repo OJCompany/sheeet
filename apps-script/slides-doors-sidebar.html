@@ -1,0 +1,66 @@
+<!-- SLIIIDE 운명의 문 — 호스트 컨트롤 사이드바
+     Apps Script 프로젝트에서 파일명을 정확히 slides-doors-sidebar 로 생성할 것.
+     이 창이 열려 있는 동안 2초마다 서버 tick을 호출해 게임 루프를 돌린다. -->
+<style>
+  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 12px; background: #101426; color: #D6DAF0; }
+  h3 { margin: 0 0 10px; font-size: 15px; color: #FFD966; }
+  button { display: block; width: 100%; margin: 6px 0; padding: 10px; border: 0; border-radius: 8px;
+           font-size: 13px; font-weight: 700; cursor: pointer; }
+  #btnSetup { background: #3949AB; color: #fff; }
+  #btnStart { background: #43A047; color: #fff; }
+  #btnJudge { background: #FB8C00; color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  #stat { margin: 10px 0; padding: 10px; background: #1B2240; border-radius: 8px; font-size: 12px; line-height: 1.6; }
+  #log { font-size: 11px; color: #8890B5; white-space: pre-wrap; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .on { background: #43A047; } .off { background: #E53935; }
+  label { font-size: 12px; display: block; margin-top: 8px; }
+</style>
+
+<h3>🎮 운명의 문</h3>
+<button id="btnSetup">🧱 보드 생성 (리셋)</button>
+<button id="btnStart">🚀 게임 시작</button>
+<button id="btnJudge">⚡ 즉시 판정</button>
+
+<div id="stat"><span class="dot off" id="dot"></span><span id="phase">대기</span>
+  <div id="info">-</div>
+</div>
+<div id="log"></div>
+
+<label><input type="checkbox" id="auto" checked> 자동 진행 (2초 tick — 게임 중 반드시 켜두기)</label>
+
+<script>
+  var busy = false;
+
+  function call(fn) {
+    if (busy) return;
+    busy = true;
+    google.script.run
+      .withSuccessHandler(function (r) { render(r); busy = false; })
+      .withFailureHandler(function (e) { fail(e); busy = false; })[fn]();
+  }
+
+  function render(r) {
+    var phaseKo = { LOBBY: '🪑 로비 — 참가자 입장 중', ROUND: '🎯 라운드 진행 중',
+                    REVEAL: '💥 판정 연출 중', DONE: '🏁 게임 종료' };
+    document.getElementById('dot').className = 'dot ' + (r.ok ? 'on' : 'off');
+    document.getElementById('phase').textContent = phaseKo[r.phase] || '대기';
+    document.getElementById('info').textContent =
+      (r.ok ? '라운드 ' + r.round + ' · 생존 ' + r.alive + '/' + r.total : '') +
+      (r.msg ? '  ' + r.msg : '');
+    if (r.log) document.getElementById('log').textContent = r.log.slice().reverse().join('\n');
+  }
+
+  function fail(e) {
+    document.getElementById('dot').className = 'dot off';
+    document.getElementById('info').textContent = '오류: ' + (e && e.message ? e.message : e);
+  }
+
+  document.getElementById('btnSetup').onclick = function () { call('dofSetup'); };
+  document.getElementById('btnStart').onclick = function () { call('dofStart'); };
+  document.getElementById('btnJudge').onclick = function () { call('dofJudgeNow'); };
+
+  setInterval(function () {
+    if (document.getElementById('auto').checked) call('dofTick');
+  }, 2000);
+</script>
