@@ -16,9 +16,12 @@
  *   2. Code.gs에 이 파일 내용 붙여넣기
  *   3. 파일 추가(+) → HTML → 이름을 정확히 slides-doors-sidebar 로 생성,
  *      slides-doors-sidebar.html 내용 붙여넣기 → 저장
- *   4. 프레젠테이션 새로고침 → 메뉴 [🎮 운명의 문] → [보드 생성] (첫 실행 시 권한 승인)
- *   5. 공유: "링크가 있는 모든 사용자 — 편집자" 로 변경 후 링크 배포
- *   6. 참가자가 대기석 아바타를 게임장으로 끌어올리면 [컨트롤 열기] → [게임 시작]
+ *   4. (선택) 구글 드라이브에 "운명의문_아바타" 폴더를 만들고 repo의 img/ 안
+ *      12지신 PNG 12장(01_쥐.png ~ 12_돼지.png)을 업로드 — 이미지 게임말 사용.
+ *      폴더가 없으면 이모지 게임말로 자동 대체된다.
+ *   5. 프레젠테이션 새로고침 → 메뉴 [🎮 운명의 문] → [보드 생성] (첫 실행 시 권한 승인)
+ *   6. 공유: "링크가 있는 모든 사용자 — 편집자" 로 변경 후 링크 배포
+ *   7. 참가자가 대기석 아바타를 게임장으로 끌어올리면 [컨트롤 열기] → [게임 시작]
  *
  * 룰:
  *   - 라운드마다 문 2~5개 등장, 25초 안에 아바타를 문 아래로 이동
@@ -35,7 +38,10 @@ const DOF_REVEAL_MS = 5000;       // 폭발 연출 후 다음 라운드까지 �
 const DOF_MAX_ROUNDS = 15;        // 안전장치: 초과 시 생존자 공동 우승
 const DOF_MAX_LOG = 9;
 
-const DOF_AVATARS = ['🐯', '🦊', '🐼', '🐸', '🐵', '🐰', '🦁', '🐮', '🐷', '🐔', '🦄', '🐙', '🦖', '🐳', '🦉', '🐝'];
+// 게임말: 12지신. 드라이브 폴더의 PNG(01_쥐 ~ 12_돼지)를 이름순으로 매칭한다.
+const DOF_AVATARS = ['쥐', '소', '호랑이', '토끼', '용', '뱀', '말', '양', '원숭이', '닭', '개', '돼지'];
+const DOF_AVATAR_EMOJI = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷']; // 이미지 없을 때 대체
+const DOF_IMG_FOLDER = '운명의문_아바타'; // 드라이브에서 게임말 이미지를 찾을 폴더 이름
 
 // 레이아웃 (기본 와이드 페이지 720×405pt 기준, 실제 크기에 맞춰 스케일)
 const DOF_L = {
@@ -347,18 +353,45 @@ function dofBuildBoard_() {
   stripLabel.setTitle(DOF_TAG + 'stripLabel');
   dofStyleText_(stripLabel, null, 8, '#8890B5', false);
 
-  // 아바타 16개
-  DOF_AVATARS.forEach((emoji, i) => {
-    const col = i % 8, row = Math.floor(i / 8);
-    const av = slide.insertShape(SlidesApp.ShapeType.ELLIPSE,
-      (L.stripX + 14 + col * (L.avatar + 22)) * sx,
-      (L.stripY + 20 + row * (L.avatar - 4)) * sy,
-      L.avatar * sx, L.avatar * sy);
-    av.setTitle(DOF_TAG + 'avatar');
-    av.getFill().setSolidFill('#FFFFFF');
-    av.getBorder().setTransparent();
-    dofStyleText_(av, emoji, 16, '#000000', false);
+  // 게임말 12개 (드라이브 이미지, 없으면 이모지 도형으로 대체)
+  const blobs = dofAvatarBlobs_();
+  DOF_AVATARS.forEach((name, i) => {
+    const col = i % 6, row = Math.floor(i / 6);
+    const x = (L.stripX + 14 + col * (L.avatar + 54)) * sx;
+    const y = (L.stripY + 20 + row * (L.avatar - 4)) * sy;
+    let av;
+    if (blobs) {
+      av = slide.insertImage(blobs[i], x, y, L.avatar * sx, L.avatar * sy);
+    } else {
+      av = slide.insertShape(SlidesApp.ShapeType.ELLIPSE, x, y, L.avatar * sx, L.avatar * sy);
+      av.getFill().setSolidFill('#FFFFFF');
+      av.getBorder().setTransparent();
+      dofStyleText_(av, DOF_AVATAR_EMOJI[i], 16, '#000000', false);
+    }
+    av.setTitle(DOF_TAG + 'avatar:' + name);
   });
+}
+
+/**
+ * 드라이브의 DOF_IMG_FOLDER 폴더에서 게임말 이미지를 이름순으로 가져온다.
+ * 폴더가 없거나 12장 미만이면 null (이모지 게임말로 대체).
+ */
+function dofAvatarBlobs_() {
+  try {
+    const folders = DriveApp.getFoldersByName(DOF_IMG_FOLDER);
+    if (!folders.hasNext()) return null;
+    const files = folders.next().getFiles();
+    const list = [];
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.getMimeType().indexOf('image/') === 0) list.push(f);
+    }
+    if (list.length < DOF_AVATARS.length) return null;
+    list.sort((a, b) => (a.getName() < b.getName() ? -1 : a.getName() > b.getName() ? 1 : 0));
+    return list.slice(0, DOF_AVATARS.length).map(f => f.getBlob());
+  } catch (e) {
+    return null;
+  }
 }
 
 function dofUpdateStandings_(st, slide) {
@@ -415,9 +448,15 @@ function dofStyleText_(shape, text, size, color, bold) {
 }
 
 function dofLabel_(el) {
+  // 게임말 이름은 제목 태그(DOF:avatar:쥐)에 담는다 — 이미지는 텍스트가 없으므로
+  const prefix = DOF_TAG + 'avatar:';
+  const t = el.getTitle() || '';
+  if (t.indexOf(prefix) === 0 && t.length > prefix.length) {
+    return t.substring(prefix.length);
+  }
   try {
-    const t = el.asShape().getText().asString().trim();
-    return t || '❓';
+    const s = el.asShape().getText().asString().trim();
+    return s || '❓';
   } catch (e) {
     return '❓';
   }
