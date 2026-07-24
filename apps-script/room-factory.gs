@@ -61,6 +61,30 @@ const GAMES = {
     build: buildPixelRoom,
     onEdit: handlePixelEdit,
   },
+  horse: {
+    name: '경마',
+    minPlayers: 1,
+    maxPlayers: 1, // 파일 1개를 전원이 공유
+    roleLabel: () => '🏇 전원 입장 링크',
+    build: buildHorseRoom,
+    onEdit: handleHorseEdit,
+  },
+  liar: {
+    name: '라이어 게임',
+    minPlayers: 3,
+    maxPlayers: 8,
+    roleLabel: i => '🎭 플레이어 ' + (i + 1),
+    build: buildLiarRoom,
+    onEdit: handleLiarEdit,
+  },
+  maze: {
+    name: '3D 미로 탈출',
+    minPlayers: 2,
+    maxPlayers: 2,
+    roleLabel: i => '🌀 플레이어 ' + (i + 1),
+    build: buildMazeRoom,
+    onEdit: handleMazeEdit,
+  },
 };
 
 // ---------- HTTP 엔드포인트 ----------
@@ -80,8 +104,21 @@ function doPost(e) {
 function handleHttp(params) {
   let out;
   try {
-    if (!params.game) {
-      out = { ok: true, service: 'SHEEET room factory', games: Object.keys(GAMES) };
+    if (params.debug === 'values' && params.fileId && params.range) {
+      // 개발 검증용: 생성된 방 시트의 실제 셀 상태를 읽는다 (호스트 소유 파일만 열림)
+      const dbgSs = SpreadsheetApp.openById(String(params.fileId));
+      const dbgSheet = params.sheetName
+        ? dbgSs.getSheetByName(String(params.sheetName))
+        : dbgSs.getSheets()[0];
+      out = {
+        ok: true,
+        sheet: dbgSheet.getName(),
+        maxCols: dbgSheet.getMaxColumns(),
+        maxRows: dbgSheet.getMaxRows(),
+        values: dbgSheet.getRange(String(params.range)).getDisplayValues(),
+      };
+    } else if (!params.game) {
+      out = { ok: true, service: 'SHEEET room factory', version: 'v10', games: Object.keys(GAMES) };
     } else {
       out = createRoom(String(params.game), Number(params.players) || 0, {
         rounds: Number(params.rounds) || 0,
@@ -962,4 +999,698 @@ function pxColorToIndex(hex, maxColors) {
     if (d2 < bestD) { bestD = d2; best = k; }
   }
   return best;
+}
+
+// ---------- 경마 ----------
+// 링크 1개를 전원이 공유한다(베팅은 공개 정보라 비밀 분리가 필요 없다).
+// 베팅 표에 닉네임+말 번호를 적고 [레이스 시작] 체크 → 랜덤 레이스 애니메이션 → 적중자 발표.
+
+const HR = {
+  sheet: '경마',
+  laneRow: 4,        // 1번 말 레인 행 (5개 연속)
+  trackCol: 3,       // C열 = 출발선
+  trackLen: 21,      // 달리는 칸 수 (마지막 오프셋 = 결승)
+  betRow: 13,        // 베팅 입력 시작 행
+  betMax: 12,
+  start: { row: 12, col: 8 },   // H12 체크박스
+  banner: { row: 2, col: 2, width: 22 },
+  laneColors: ['#EAF6EA', '#DFF0DF'],
+  gold: '#FFD966',
+};
+const HR_NUMS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
+
+function buildHorseRoom(roomId, n) {
+  const ss = SpreadsheetApp.create('SHEEET 경마 ' + roomId);
+  const sheet = ss.getSheets()[0].setName(HR.sheet);
+  drawHorseBoard(sheet);
+  DriveApp.getFileById(ss.getId())
+    .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+  return { fileIds: [ss.getId()], urls: [ss.getUrl()], phase: 'idle' };
+}
+
+function drawHorseBoard(sheet) {
+  const finishCol = HR.trackCol + HR.trackLen;
+  const needCols = finishCol + 4;
+  if (sheet.getMaxColumns() < needCols) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), needCols - sheet.getMaxColumns());
+  }
+
+  // 배너
+  sheet.getRange(HR.banner.row, HR.banner.col, 1, HR.banner.width).merge();
+  sheet.setRowHeight(2, 46);
+  sheet.getRange(HR.banner.row, HR.banner.col)
+    .setValue('🏇 베팅 표에 닉네임과 말 번호(1~5)를 적고, [레이스 시작]을 체크하세요!')
+    .setFontWeight('bold').setFontSize(12)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setWrap(true).setBackground('#FFF8E1');
+
+  // 트랙 (5레인)
+  hrResetTrack(sheet);
+  sheet.setColumnWidth(2, 40);
+  sheet.setColumnWidths(HR.trackCol, HR.trackLen + 1, 27);
+  sheet.setRowHeights(HR.laneRow, 5, 32);
+
+  // 베팅 표
+  sheet.getRange(11, 3).setValue('💰 베팅: 한 줄에 자기 [닉네임]과 [말 번호]를 적으세요')
+    .setFontWeight('bold');
+  sheet.getRange(12, 3).setValue('닉네임').setFontWeight('bold');
+  sheet.getRange(12, 4).setValue('말 번호').setFontWeight('bold');
+  sheet.getRange(HR.betRow, 3, HR.betMax, 2)
+    .setBackground(NICK_YELLOW)
+    .setBorder(true, true, true, true, true, true, '#F9A825', SpreadsheetApp.BorderStyle.SOLID);
+  sheet.setColumnWidth(3, 110);
+  sheet.setColumnWidth(4, 70);
+
+  // 시작 체크박스 (베팅 표 오른쪽)
+  sheet.getRange(HR.start.row - 1, HR.start.col - 1)
+    .setValue('🏁 레이스 시작 ↓').setFontWeight('bold');
+  sheet.getRange(HR.start.row, HR.start.col - 1).insertCheckboxes();
+}
+
+/** 트랙을 출발 상태로 다시 그린다 */
+function hrResetTrack(sheet) {
+  const finishCol = HR.trackCol + HR.trackLen;
+  for (let i = 0; i < 5; i++) {
+    const row = HR.laneRow + i;
+    sheet.getRange(row, 2).setValue(HR_NUMS[i]).setFontSize(14)
+      .setHorizontalAlignment('center');
+    sheet.getRange(row, HR.trackCol, 1, HR.trackLen)
+      .clearContent().setBackground(HR.laneColors[i % 2]);
+    sheet.getRange(row, HR.trackCol).setValue('🏇').setFontSize(16)
+      .setHorizontalAlignment('center');
+    sheet.getRange(row, finishCol).setValue('🏁').setBackground('#37474F')
+      .setFontSize(14).setHorizontalAlignment('center');
+  }
+}
+
+function handleHorseEdit(e, room, roomId) {
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== HR.sheet) return;
+  if (e.range.getRow() === HR.start.row && e.range.getColumn() === HR.start.col - 1
+      && e.value === 'TRUE') {
+    e.range.setValue(false);
+    if (room.phase !== 'idle') return;
+    room.phase = 'racing';
+    return () => runHorseRace(roomId, JSON.parse(JSON.stringify(room)));
+  }
+}
+
+function runHorseRace(roomId, room) {
+  const sheet = SpreadsheetApp.openById(room.fileIds[0]).getSheetByName(HR.sheet);
+  const banner = msg => sheet.getRange(HR.banner.row, HR.banner.col).setValue(msg);
+  try {
+    // 베팅 수거
+    const rows = sheet.getRange(HR.betRow, 3, HR.betMax, 2).getValues();
+    const bets = [];
+    rows.forEach(r => {
+      const name = String(r[0] || '').trim().slice(0, 12);
+      const horse = Number(r[1]);
+      if (name && horse >= 1 && horse <= 5) bets.push({ name: name, horse: horse });
+    });
+
+    hrResetTrack(sheet);
+    banner('📣 ' + (bets.length ? bets.length + '명 베팅 완료! ' : '베팅 없이 관전 레이스! ') + '준비…');
+    SpreadsheetApp.flush();
+    Utilities.sleep(1500);
+    banner('🏇 출발!!!');
+    SpreadsheetApp.flush();
+
+    // 레이스 루프
+    const pos = [0, 0, 0, 0, 0];
+    let winner = -1;
+    for (let tick = 0; tick < 45 && winner < 0; tick++) {
+      for (let i = 0; i < 5; i++) {
+        if (pos[i] >= HR.trackLen - 1) continue;
+        const step = Math.random() < 0.15 ? 0 : Math.random() < 0.7 ? 1 : 2;
+        const prev = pos[i];
+        pos[i] = Math.min(pos[i] + step, HR.trackLen - 1);
+        if (pos[i] !== prev) {
+          const row = HR.laneRow + i;
+          sheet.getRange(row, HR.trackCol + prev).setValue('');
+          sheet.getRange(row, HR.trackCol + pos[i]).setValue('🏇').setFontSize(16)
+            .setHorizontalAlignment('center');
+        }
+      }
+      const leaders = [];
+      for (let i = 0; i < 5; i++) if (pos[i] >= HR.trackLen - 1) leaders.push(i);
+      if (leaders.length) winner = leaders[Math.floor(Math.random() * leaders.length)];
+      SpreadsheetApp.flush();
+      Utilities.sleep(700);
+    }
+    if (winner < 0) winner = pos.indexOf(Math.max.apply(null, pos)); // 안전장치
+
+    // 우승 연출 + 적중자 발표
+    const row = HR.laneRow + winner;
+    for (let k = 0; k < 3; k++) {
+      sheet.getRange(row, HR.trackCol, 1, HR.trackLen).setBackground(HR.gold);
+      SpreadsheetApp.flush();
+      Utilities.sleep(350);
+      sheet.getRange(row, HR.trackCol, 1, HR.trackLen).setBackground(HR.laneColors[winner % 2]);
+      SpreadsheetApp.flush();
+      Utilities.sleep(250);
+    }
+    sheet.getRange(row, HR.trackCol, 1, HR.trackLen).setBackground(HR.gold);
+
+    const hits = bets.filter(b => b.horse === winner + 1).map(b => b.name);
+    banner('🏆 ' + HR_NUMS[winner] + ' 번 말 우승! ' +
+      (bets.length === 0 ? '' : hits.length ? '💰 적중: ' + hits.join(', ') + '!' : '적중자 없음 😭') +
+      ' — 다시 하려면 [레이스 시작] 체크');
+    // 베팅 표 결과 표시: 적중 행 금색, 나머지 회색
+    rows.forEach((r, idx) => {
+      const name = String(r[0] || '').trim();
+      const horse = Number(r[1]);
+      if (!name || !(horse >= 1 && horse <= 5)) return;
+      sheet.getRange(HR.betRow + idx, 3, 1, 2)
+        .setBackground(horse === winner + 1 ? HR.gold : '#ECEFF1');
+    });
+  } finally {
+    updateRoom(roomId, rm => { rm.phase = 'idle'; });
+    SpreadsheetApp.flush();
+  }
+}
+
+// ---------- 라이어 게임 ----------
+// 1인 1링크의 비밀 유지력을 활용: 전원이 제시어를 보지만 라이어 한 명만 정체 카드를 본다.
+
+const LIAR_WORDS = [
+  // 음식
+  { cat: '음식', word: '김치찌개' },
+  { cat: '음식', word: '삼겹살' },
+  { cat: '음식', word: '라면' },
+  { cat: '음식', word: '떡볶이' },
+  { cat: '음식', word: '치킨' },
+
+  // 동물
+  { cat: '동물', word: '강아지' },
+  { cat: '동물', word: '고양이' },
+  { cat: '동물', word: '호랑이' },
+  { cat: '동물', word: '코끼리' },
+  { cat: '동물', word: '토끼' },
+
+  // 장소
+  { cat: '장소', word: '찜질방' },
+  { cat: '장소', word: '병원' },
+  { cat: '장소', word: '노래방' },
+  { cat: '장소', word: '시장' },
+  { cat: '장소', word: '학교' },
+
+  // 직업
+  { cat: '직업', word: '의사' },
+  { cat: '직업', word: '선생님' },
+  { cat: '직업', word: '경찰' },
+  { cat: '직업', word: '요리사' },
+  { cat: '직업', word: '소방관' },
+
+  // 물건
+  { cat: '물건', word: '우산' },
+  { cat: '물건', word: '냉장고' },
+  { cat: '물건', word: '칫솔' },
+  { cat: '물건', word: '거울' },
+  { cat: '물건', word: '베개' },
+
+  // 스포츠
+  { cat: '스포츠', word: '축구' },
+  { cat: '스포츠', word: '야구' },
+  { cat: '스포츠', word: '농구' },
+  { cat: '스포츠', word: '수영' },
+  { cat: '스포츠', word: '탁구' },
+
+  // 탈것
+  { cat: '탈것', word: '버스' },
+  { cat: '탈것', word: '지하철' },
+  { cat: '탈것', word: '자전거' },
+  { cat: '탈것', word: '비행기' },
+  { cat: '탈것', word: '택시' },
+
+  // 과일
+  { cat: '과일', word: '사과' },
+  { cat: '과일', word: '바나나' },
+  { cat: '과일', word: '수박' },
+  { cat: '과일', word: '딸기' },
+  { cat: '과일', word: '포도' },
+];
+
+const LR = {
+  sheet: '라이어',
+  banner: { row: 2, col: 2, width: 12 },     // B2:M2
+  card: { row: 4, col: 2, rows: 4, cols: 8 }, // 제시어 카드 (B4:I7 병합)
+  rosterRow: 10, rosterCol: 2,                // 참가자 명단
+  pcol: 11,                                   // 우측 패널 (K열)
+};
+
+function buildLiarRoom(roomId, n) {
+  const files = [];
+  for (let i = 0; i < n; i++) {
+    const ss = SpreadsheetApp.create('SHEEET 라이어 ' + roomId + ' — P' + (i + 1));
+    const sheet = ss.getSheets()[0].setName(LR.sheet);
+    drawLiarBoard(sheet, i, n);
+    DriveApp.getFileById(ss.getId())
+      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    files.push({ id: ss.getId(), url: ss.getUrl() });
+  }
+  return {
+    fileIds: files.map(f => f.id),
+    urls: files.map(f => f.url),
+    phase: 'idle',
+    names: {},
+    votes: {},
+    usedWords: [],
+  };
+}
+
+function lrCells() {
+  const p = LR.pcol;
+  return {
+    nickLabel: { row: 4, col: p }, nick: { row: 5, col: p },
+    startLabel: { row: 7, col: p }, start: { row: 8, col: p },
+    voteLabel: { row: 10, col: p }, vote: { row: 11, col: p },
+    stateLabel: { row: 13, col: p }, state: { row: 14, col: p },
+  };
+}
+
+function drawLiarBoard(sheet, idx, n) {
+  const c = lrCells();
+  sheet.getRange(LR.banner.row, LR.banner.col, 1, LR.banner.width).merge();
+  sheet.setRowHeight(2, 46);
+  sheet.getRange(LR.banner.row, LR.banner.col)
+    .setValue('🎭 닉네임 입력 → 전원 모이면 아무나 [게임 시작] 체크!')
+    .setFontWeight('bold').setFontSize(12)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setWrap(true).setBackground('#F3E5F5');
+
+  // 제시어 카드
+  sheet.getRange(LR.card.row, LR.card.col, LR.card.rows, LR.card.cols).merge();
+  sheet.getRange(LR.card.row, LR.card.col)
+    .setValue('🃏 게임이 시작되면 여기에 제시어가 뜹니다\n(다른 사람에게 화면을 보여주지 마세요!)')
+    .setFontSize(16).setFontWeight('bold').setWrap(true)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setBackground('#263238').setFontColor('#ECEFF1');
+  sheet.setRowHeights(LR.card.row, LR.card.rows, 34);
+
+  // 참가자 명단
+  sheet.getRange(LR.rosterRow - 1, LR.rosterCol).setValue('👥 참가자 (투표는 번호로!)')
+    .setFontWeight('bold');
+  for (let i = 0; i < n; i++) {
+    sheet.getRange(LR.rosterRow + i, LR.rosterCol)
+      .setValue((i + 1) + '. 플레이어' + (i + 1) + (i === idx ? '  ← 나' : ''));
+  }
+
+  // 우측 패널 (세로 배치)
+  const put = (pos, txt) => sheet.getRange(pos.row, pos.col)
+    .setValue(txt).setFontWeight('bold');
+  put(c.nickLabel, '1️⃣ 내 닉네임 ↓');
+  sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW)
+    .setBorder(true, true, true, true, false, false, '#F9A825', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  put(c.startLabel, '게임 시작 ↓');
+  sheet.getRange(c.start.row, c.start.col).insertCheckboxes();
+  put(c.voteLabel, '🗳 라이어 투표 (번호) ↓');
+  sheet.getRange(c.vote.row, c.vote.col).setBackground('#E3F2FD')
+    .setBorder(true, true, true, true, false, false, '#1E88E5', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  put(c.stateLabel, '상태');
+  sheet.getRange(c.state.row, c.state.col).setValue('대기 중');
+  sheet.setColumnWidth(LR.pcol, 170);
+  sheet.setColumnWidth(LR.rosterCol, 160);
+}
+
+function handleLiarEdit(e, room, roomId) {
+  const srcIdx = room.fileIds.indexOf(e.source.getId());
+  if (srcIdx < 0) return;
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== LR.sheet) return;
+  const c = lrCells();
+  const r = e.range.getRow();
+  const col = e.range.getColumn();
+
+  // 닉네임 → 전원 명단 갱신
+  if (r === c.nick.row && col === c.nick.col) {
+    room.names[srcIdx] = String(e.value || '').trim().slice(0, 12);
+    lrSyncRoster(room);
+    return;
+  }
+
+  // 게임 시작 (새 라운드 겸용)
+  if (r === c.start.row && col === c.start.col && e.value === 'TRUE') {
+    e.range.setValue(false);
+    if (room.phase === 'discuss') return; // 진행 중엔 무시
+    lrDealRound(room);
+    return;
+  }
+
+  // 투표
+  if (r === c.vote.row && col === c.vote.col) {
+    if (room.phase !== 'discuss') {
+      e.range.setValue('');
+      return;
+    }
+    const v = Number(String(e.value || '').trim());
+    const n = room.fileIds.length;
+    if (!(v >= 1 && v <= n)) {
+      e.range.setValue('');
+      sheet.getRange(c.state.row, c.state.col).setValue('⚠️ 1~' + n + ' 번호만!');
+      return;
+    }
+    room.votes[srcIdx] = v;
+    const cnt = Object.keys(room.votes).length;
+    lrEachSheet(room, s => s.getRange(c.state.row, c.state.col)
+      .setValue('🗳 투표 ' + cnt + ' / ' + n));
+    if (cnt >= n) lrReveal(room);
+    return;
+  }
+}
+
+function lrName(room, i) {
+  return (room.names && room.names[i]) || '플레이어' + (i + 1);
+}
+
+function lrEachSheet(room, fn) {
+  room.fileIds.forEach((id, i) =>
+    fn(SpreadsheetApp.openById(id).getSheetByName(LR.sheet), i));
+}
+
+function lrSyncRoster(room) {
+  const n = room.fileIds.length;
+  lrEachSheet(room, (s, me) => {
+    for (let i = 0; i < n; i++) {
+      s.getRange(LR.rosterRow + i, LR.rosterCol)
+        .setValue((i + 1) + '. ' + lrName(room, i) + (i === me ? '  ← 나' : ''));
+    }
+  });
+}
+
+/** 새 라운드: 제시어 뽑고 라이어 지정, 각자 비밀 카드 배포 */
+function lrDealRound(room) {
+  const pool = LIAR_WORDS.map((_, i) => i).filter(i => room.usedWords.indexOf(i) < 0);
+  const wIdx = pool.length ? pool[Math.floor(Math.random() * pool.length)]
+                           : Math.floor(Math.random() * LIAR_WORDS.length);
+  room.usedWords.push(wIdx);
+  const pick = LIAR_WORDS[wIdx];
+  room.liar = Math.floor(Math.random() * room.fileIds.length);
+  room.votes = {};
+  room.phase = 'discuss';
+  room.word = pick.word;
+  room.cat = pick.cat;
+
+  const c = lrCells();
+  lrEachSheet(room, (s, i) => {
+    const card = s.getRange(LR.card.row, LR.card.col);
+    if (i === room.liar) {
+      card.setValue('🤫 당신이 라이어입니다!\n카테고리: ' + pick.cat + '\n들키지 말고 아는 척 하세요')
+        .setBackground('#B71C1C').setFontColor('#FFFFFF');
+    } else {
+      card.setValue('카테고리: ' + pick.cat + '\n제시어: 「' + pick.word + '」\n라이어에게 들키지 마세요')
+        .setBackground('#1B5E20').setFontColor('#FFFFFF');
+    }
+    s.getRange(LR.banner.row, LR.banner.col)
+      .setValue('🎭 말로 돌아가며 제시어를 설명하세요! 라이어를 찾았다면 [투표] 칸에 번호 입력')
+      .setFontColor('#6A1B9A');
+    s.getRange(c.vote.row, c.vote.col).setValue('');
+    s.getRange(c.state.row, c.state.col).setValue('🗳 투표 0 / ' + room.fileIds.length);
+  });
+  lrSyncRoster(room);
+}
+
+/** 전원 투표 완료 → 개표 + 정체 공개 */
+function lrReveal(room) {
+  const n = room.fileIds.length;
+  const tally = new Array(n).fill(0);
+  Object.keys(room.votes).forEach(k => { tally[room.votes[k] - 1]++; });
+  const top = Math.max.apply(null, tally);
+  const accusedList = tally.map((v, i) => (v === top ? i : -1)).filter(i => i >= 0);
+  // 동률이면 라이어가 빠져나간다
+  const citizensWin = accusedList.length === 1 && accusedList[0] === room.liar;
+
+  const lines = tally.map((v, i) => (i + 1) + '. ' + lrName(room, i) + ' — ' + v + '표').join('  ·  ');
+  const c = lrCells();
+  lrEachSheet(room, s => {
+    s.getRange(LR.card.row, LR.card.col)
+      .setValue('🎭 라이어는 ' + (room.liar + 1) + '번 「' + lrName(room, room.liar) + '」!\n제시어: ' +
+        room.cat + ' — 「' + room.word + '」\n' +
+        (citizensWin ? '🎉 시민 승리! 라이어를 잡았습니다' : '😈 라이어 승리! 다들 속았습니다'))
+      .setBackground(citizensWin ? '#1B5E20' : '#B71C1C').setFontColor('#FFFFFF');
+    s.getRange(LR.banner.row, LR.banner.col)
+      .setValue('개표: ' + lines + '  — 다시 하려면 [게임 시작] 체크')
+      .setFontColor('#000000');
+    s.getRange(c.state.row, c.state.col).setValue(citizensWin ? '시민 승' : '라이어 승');
+  });
+  room.phase = 'done';
+}
+
+// ---------- 3D 미로 탈출 ----------
+// 같은 미로, 같은 출발점에서 각자 1인칭 시점으로 헤매다 먼저 출구에 닿으면 승리.
+// 뷰는 깊이 3단 원근 렌더링: 셀 배경색만으로 복도·벽·갈림길을 그린다.
+
+const MZ = {
+  sheet: '미로',
+  size: 13, // 홀수 격자 (1=벽, 0=통로)
+  view: { row: 4, col: 3, w: 12, h: 9 }, // 뷰포트 C4:N12
+  pcol: 17, // 우측 패널 열
+  banner: { row: 2, col: 2, width: 14 },
+};
+const MZ_C = {
+  dark: '#0A0A12',
+  face: ['#8A97B8', '#67748F', '#49536B', '#333B4E'], // 깊이별 정면 벽
+  side: ['#5C6786', '#454F6E', '#323A55', '#232940'], // 깊이별 측면 벽
+  open: '#131623', // 옆으로 뚫린 갈림길
+  ceil: ['#2A2F45', '#232738', '#1C1F2D', '#161824'],
+  floor: ['#454C6B', '#383E59', '#2C3147', '#212536'],
+  exit: '#FFD54F',
+};
+const MZ_DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // 북 동 남 서
+const MZ_DIRNAME = ['북 ⬆️', '동 ➡️', '남 ⬇️', '서 ⬅️'];
+const MZ_X = [0, 2, 4, 5]; // 깊이별 가로 인셋
+const MZ_Y = [0, 1, 2, 3]; // 깊이별 세로 인셋
+
+/** 재귀 백트래커 미로 생성 → '1'/'0' 문자열 행 배열 */
+function mzGen(size) {
+  const g = [];
+  for (let r = 0; r < size; r++) g.push(new Array(size).fill(1));
+  const stack = [[1, 1]];
+  g[1][1] = 0;
+  while (stack.length) {
+    const cur = stack[stack.length - 1];
+    const cand = [];
+    for (const d of MZ_DIRS) {
+      const nr = cur[0] + d[0] * 2;
+      const nc = cur[1] + d[1] * 2;
+      if (nr > 0 && nr < size - 1 && nc > 0 && nc < size - 1 && g[nr][nc] === 1) {
+        cand.push([nr, nc, cur[0] + d[0], cur[1] + d[1]]);
+      }
+    }
+    if (!cand.length) { stack.pop(); continue; }
+    const pick = cand[Math.floor(Math.random() * cand.length)];
+    g[pick[2]][pick[3]] = 0;
+    g[pick[0]][pick[1]] = 0;
+    stack.push([pick[0], pick[1]]);
+  }
+  return g.map(row => row.join(''));
+}
+
+function mzWall(maze, r, c) {
+  if (r < 0 || c < 0 || r >= maze.length || c >= maze.length) return true;
+  return maze[r].charAt(c) === '1';
+}
+
+/** 1인칭 뷰 색상 그리드 (h×w) */
+function mzRenderView(maze, p, exit) {
+  const w = MZ.view.w;
+  const h = MZ.view.h;
+  const g = [];
+  for (let r = 0; r < h; r++) g.push(new Array(w).fill(MZ_C.dark));
+  const fill = (r0, r1, c0, c1, color) => {
+    for (let r = r0; r <= r1 && r < h; r++) {
+      for (let c = c0; c <= c1 && c < w; c++) if (r >= 0 && c >= 0) g[r][c] = color;
+    }
+  };
+  const dir = MZ_DIRS[p.dir];
+  const left = MZ_DIRS[(p.dir + 3) % 4];
+  const right = MZ_DIRS[(p.dir + 1) % 4];
+
+  for (let d = 0; d < 3; d++) {
+    const cr = p.r + dir[0] * d;
+    const cc = p.c + dir[1] * d;
+    // 천장·바닥 띠
+    fill(MZ_Y[d], MZ_Y[d + 1] - 1, MZ_X[d], w - 1 - MZ_X[d], MZ_C.ceil[d]);
+    fill(h - MZ_Y[d + 1] + 1 - 1, h - 1 - MZ_Y[d], MZ_X[d], w - 1 - MZ_X[d], MZ_C.floor[d]);
+    // 좌우 벽/갈림길 띠
+    const rowTop = MZ_Y[d];
+    const rowBot = h - 1 - MZ_Y[d];
+    const lOpen = !mzWall(maze, cr + left[0], cc + left[1]);
+    const rOpen = !mzWall(maze, cr + right[0], cc + right[1]);
+    fill(rowTop, rowBot, MZ_X[d], MZ_X[d + 1] - 1, lOpen ? MZ_C.open : MZ_C.side[d]);
+    fill(rowTop, rowBot, w - MZ_X[d + 1], w - 1 - MZ_X[d], rOpen ? MZ_C.open : MZ_C.side[d]);
+    // 전방 확인
+    const fr = cr + dir[0];
+    const fc = cc + dir[1];
+    const centerT = MZ_Y[d + 1];
+    const centerB = h - 1 - MZ_Y[d + 1];
+    const centerL = MZ_X[d + 1];
+    const centerR = w - 1 - MZ_X[d + 1];
+    if (fr === exit[0] && fc === exit[1]) {
+      fill(centerT, centerB, centerL, centerR, MZ_C.exit);
+      return g;
+    }
+    if (mzWall(maze, fr, fc)) {
+      fill(centerT, centerB, centerL, centerR, MZ_C.face[d]);
+      return g;
+    }
+  }
+  // 3칸 이상 뚫린 복도 — 저 끝은 어둠
+  fill(MZ_Y[3], MZ.view.h - 1 - MZ_Y[3], MZ_X[3], MZ.view.w - 1 - MZ_X[3], MZ_C.dark);
+  return g;
+}
+
+function mzCells() {
+  const p = MZ.pcol;
+  return {
+    nickLabel: { row: 4, col: p }, nick: { row: 5, col: p },
+    moveLabel: { row: 7, col: p }, move: { row: 8, col: p },
+    meLabel: { row: 10, col: p }, me: { row: 11, col: p },
+    oppLabel: { row: 13, col: p }, opp: { row: 14, col: p },
+    stateLabel: { row: 16, col: p }, state: { row: 17, col: p },
+  };
+}
+
+function buildMazeRoom(roomId, n) {
+  const maze = mzGen(MZ.size);
+  const exit = [MZ.size - 2, MZ.size - 2];
+  const files = [];
+  for (let i = 0; i < 2; i++) {
+    const ss = SpreadsheetApp.create('SHEEET 미로 ' + roomId + ' — P' + (i + 1));
+    const sheet = ss.getSheets()[0].setName(MZ.sheet);
+    drawMazeBoard(sheet);
+    DriveApp.getFileById(ss.getId())
+      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+    files.push({ id: ss.getId(), url: ss.getUrl() });
+  }
+  const room = {
+    fileIds: files.map(f => f.id),
+    urls: files.map(f => f.url),
+    maze: maze,
+    exit: exit,
+    p: [{ r: 1, c: 1, dir: 2, steps: 0 }, { r: 1, c: 1, dir: 2, steps: 0 }],
+    names: {},
+    over: false,
+  };
+  // 초기 시점 렌더
+  files.forEach((f, i) => {
+    const sheet = SpreadsheetApp.openById(f.id).getSheetByName(MZ.sheet);
+    mzPaintView(sheet, mzRenderView(maze, room.p[i], exit));
+    mzStatus(sheet, room, i);
+  });
+  return room;
+}
+
+function drawMazeBoard(sheet) {
+  const c = mzCells();
+  sheet.getRange(MZ.banner.row, MZ.banner.col, 1, MZ.banner.width).merge();
+  sheet.setRowHeight(2, 46);
+  sheet.getRange(MZ.banner.row, MZ.banner.col)
+    .setValue('🌀 이동 칸에 w(전진)·a(좌회전)·d(우회전)·s(후진)를 입력! 노란 문(출구)을 먼저 찾으면 승리')
+    .setFontWeight('bold').setFontSize(12)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle')
+    .setWrap(true).setBackground('#E8EAF6');
+  sheet.getRange(3, MZ.view.col)
+    .setValue('👀 아래가 당신의 눈입니다 — 노란색이 보이면 출구가 코앞!')
+    .setFontSize(10).setFontColor('#555555');
+
+  // 뷰포트
+  sheet.getRange(MZ.view.row, MZ.view.col, MZ.view.h, MZ.view.w).setBackground(MZ_C.dark);
+  sheet.setColumnWidths(MZ.view.col, MZ.view.w, 34);
+  sheet.setRowHeights(MZ.view.row, MZ.view.h, 34);
+  // 뷰포트 테두리 프레임
+  sheet.getRange(MZ.view.row - 1, MZ.view.col - 1, MZ.view.h + 2, MZ.view.w + 2)
+    .setBorder(true, true, true, true, false, false, '#000000', SpreadsheetApp.BorderStyle.SOLID_THICK);
+
+  const put = (pos, txt) => sheet.getRange(pos.row, pos.col)
+    .setValue(txt).setFontWeight('bold');
+  put(c.nickLabel, '1️⃣ 내 닉네임 ↓');
+  sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW)
+    .setBorder(true, true, true, true, false, false, '#F9A825', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  put(c.moveLabel, '🕹 이동 입력 (w/a/s/d) ↓');
+  sheet.getRange(c.move.row, c.move.col).setBackground('#E8F5E9').setFontSize(16)
+    .setBorder(true, true, true, true, false, false, '#43A047', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  put(c.meLabel, '🧭 나');
+  put(c.oppLabel, '🏃 상대');
+  sheet.getRange(c.opp.row, c.opp.col).setValue('0걸음');
+  put(c.stateLabel, '상태');
+  sheet.getRange(c.state.row, c.state.col).setValue('탈출 경쟁 중!');
+  sheet.setColumnWidth(MZ.pcol, 190);
+}
+
+function mzPaintView(sheet, colors) {
+  sheet.getRange(MZ.view.row, MZ.view.col, MZ.view.h, MZ.view.w).setBackgrounds(colors);
+}
+
+function mzStatus(sheet, room, i) {
+  const c = mzCells();
+  const me = room.p[i];
+  sheet.getRange(c.me.row, c.me.col)
+    .setValue(MZ_DIRNAME[me.dir] + ' · ' + me.steps + '걸음');
+}
+
+function handleMazeEdit(e, room, roomId) {
+  const srcIdx = room.fileIds.indexOf(e.source.getId());
+  if (srcIdx < 0) return;
+  const sheet = e.range.getSheet();
+  if (sheet.getName() !== MZ.sheet) return;
+  const c = mzCells();
+  const r = e.range.getRow();
+  const col = e.range.getColumn();
+
+  if (r === c.nick.row && col === c.nick.col) {
+    room.names[srcIdx] = String(e.value || '').trim().slice(0, 12);
+    return;
+  }
+
+  if (r === c.move.row && col === c.move.col) {
+    const raw = String(e.value || '').trim().toLowerCase().charAt(0);
+    e.range.setValue('');
+    if (room.over) return;
+    const cmd = { w: 'w', a: 'a', s: 's', d: 'd', 'ㅈ': 'w', 'ㅁ': 'a', 'ㄴ': 's', 'ㅇ': 'd' }[raw];
+    if (!cmd) return;
+
+    const me = room.p[srcIdx];
+    if (cmd === 'a') me.dir = (me.dir + 3) % 4;
+    else if (cmd === 'd') me.dir = (me.dir + 1) % 4;
+    else {
+      const sign = cmd === 'w' ? 1 : -1;
+      const nr = me.r + MZ_DIRS[me.dir][0] * sign;
+      const nc = me.c + MZ_DIRS[me.dir][1] * sign;
+      if (!mzWall(room.maze, nr, nc)) {
+        me.r = nr;
+        me.c = nc;
+        me.steps++;
+      } else {
+        sheet.getRange(MZ.banner.row, MZ.banner.col).setValue('🧱 쿵! 벽입니다')
+          .setFontColor(FLASH_RED);
+      }
+    }
+
+    // 탈출 판정
+    if (me.r === room.exit[0] && me.c === room.exit[1]) {
+      room.over = true;
+      const winner = lrName(room, srcIdx); // 이름 규칙 동일해서 재사용
+      room.fileIds.forEach((id, i) => {
+        const s = SpreadsheetApp.openById(id).getSheetByName(MZ.sheet);
+        s.getRange(MZ.banner.row, MZ.banner.col)
+          .setValue('🏁 ' + winner + ' 님이 ' + me.steps + '걸음 만에 탈출! ' +
+            (i === srcIdx ? '🏆 승리!' : '패배… 다음 방에서 설욕전!'))
+          .setFontColor(i === srcIdx ? '#188038' : FLASH_RED);
+        s.getRange(c.state.row, c.state.col).setValue(i === srcIdx ? '🏆 탈출 성공' : '패배');
+      });
+      // 승자 뷰: 출구 통과 연출
+      const g = [];
+      for (let row = 0; row < MZ.view.h; row++) g.push(new Array(MZ.view.w).fill(MZ_C.exit));
+      mzPaintView(sheet, g);
+      return;
+    }
+
+    mzPaintView(sheet, mzRenderView(room.maze, me, room.exit));
+    mzStatus(sheet, room, srcIdx);
+    // 상대 파일에 진행도 표시
+    const other = 1 - srcIdx;
+    SpreadsheetApp.openById(room.fileIds[other]).getSheetByName(MZ.sheet)
+      .getRange(c.opp.row, c.opp.col).setValue(me.steps + '걸음');
+    return;
+  }
 }

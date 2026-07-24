@@ -7,11 +7,24 @@ const GAMES = [
   { id: 'omok', name: '오목', emoji: '⚫', desc: '1:1 대전 · 다섯 개를 이으면 승리', players: 2, ready: true },
   {
     id: 'pixel', name: '픽셀 기억 그리기', emoji: '🖼️',
-    desc: '단체전 · 10초 암기, 60초 그리기 — 가장 똑같이 그린 사람이 승리',
-    ready: true, configurable: true,
+    desc: '단체전 · 암기하고 그려라 — 가장 똑같이 그린 사람이 승리',
+    ready: true, configurable: true, opts: { players: [2, 6], rounds: true, difficulty: true },
   },
-  { id: 'liar', name: '라이어 게임', emoji: '🎭', desc: '단체전 · 너만 모르는 제시어', ready: false },
-  { id: 'maze', name: '3D 미로 탈출', emoji: '🌀', desc: '1:1 경주 · 스프레드시트에서 3D를', ready: false },
+  {
+    id: 'liar', name: '라이어 게임', emoji: '🎭',
+    desc: '단체전 · 너만 모르는 제시어 — 토론하고 투표로 라이어를 찾아라',
+    ready: true, configurable: true, opts: { players: [3, 8] },
+  },
+  {
+    id: 'maze', name: '3D 미로 탈출', emoji: '🌀',
+    desc: '1:1 경주 · 스프레드시트에서 1인칭 3D를 — 먼저 출구를 찾아라',
+    players: 2, ready: true,
+  },
+  {
+    id: 'horse', name: '경마', emoji: '🏇',
+    desc: '전원 한 링크 · 말 1~5에 베팅하고 레이스를 지켜봐라',
+    players: 1, ready: true,
+  },
 ];
 
 const DIFFICULTIES = [
@@ -31,6 +44,8 @@ export default function Home() {
 
   function onCardClick(game) {
     if (game.configurable) {
+      const [min, max] = game.opts.players;
+      setConfig(c => ({ ...c, players: Math.min(Math.max(c.players, min), max) }));
       setConfigGame(configGame?.id === game.id ? null : game);
       setRoom(null);
       setError(null);
@@ -38,6 +53,10 @@ export default function Home() {
     }
     setConfigGame(null);
     createRoom(game);
+  }
+
+  function range(min, max) {
+    return Array.from({ length: max - min + 1 }, (_, i) => min + i);
   }
 
   async function createRoom(game, opts) {
@@ -103,27 +122,31 @@ export default function Home() {
                 value={config.players}
                 onChange={e => setConfig({ ...config, players: Number(e.target.value) })}
               >
-                {[2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n}명</option>)}
+                {range(...configGame.opts.players).map(n => <option key={n} value={n}>{n}명</option>)}
               </select>
             </label>
-            <label>
-              라운드
-              <select
-                value={config.rounds}
-                onChange={e => setConfig({ ...config, rounds: Number(e.target.value) })}
-              >
-                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}라운드</option>)}
-              </select>
-            </label>
-            <label>
-              난이도
-              <select
-                value={config.difficulty}
-                onChange={e => setConfig({ ...config, difficulty: e.target.value })}
-              >
-                {DIFFICULTIES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-              </select>
-            </label>
+            {configGame.opts.rounds && (
+              <label>
+                라운드
+                <select
+                  value={config.rounds}
+                  onChange={e => setConfig({ ...config, rounds: Number(e.target.value) })}
+                >
+                  {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}라운드</option>)}
+                </select>
+              </label>
+            )}
+            {configGame.opts.difficulty && (
+              <label>
+                난이도
+                <select
+                  value={config.difficulty}
+                  onChange={e => setConfig({ ...config, difficulty: e.target.value })}
+                >
+                  {DIFFICULTIES.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+            )}
             <button
               className="btn primary"
               disabled={creating}
