@@ -56,10 +56,12 @@ const DOF_L = {
 };
 
 const DOF_C = {
-  bg: '#101426', strip: '#0D101F', floor: '#161C36',
-  door: '#C9974C', doorText: '#3A2A10',
-  boom: '#E53935', safe: '#43A047',
-  banner: '#FFFFFF', panel: '#1B2240', panelText: '#D6DAF0',
+  bg: '#0B1020', strip: '#11182B', floor: '#141D33',
+  floorBorder: '#2B3858', door: '#F2C66D', doorText: '#30210A',
+  boom: '#F05252', safe: '#32B67A',
+  banner: '#F7F8FC', muted: '#8F9AB8',
+  panel: '#121A2E', panelBorder: '#2A3654', panelText: '#E6EAF5',
+  accent: '#7C8CFF', gold: '#FFD978',
 };
 
 // ---------- 메뉴 / 사이드바 ----------
@@ -200,8 +202,9 @@ function dofStartRound_(st, slide) {
       x, DOF_L.doorTop * sy, DOF_L.doorW * sx, DOF_L.doorH * sy);
     door.setTitle(DOF_TAG + 'door:' + i);
     door.getFill().setSolidFill(DOF_C.door);
-    door.getBorder().setTransparent();
-    dofStyleText_(door, '🚪\n' + (i + 1), 22, DOF_C.doorText, true);
+    door.getBorder().setWeight(1.5);
+    door.getBorder().getLineFill().setSolidFill('#FFE3A8');
+    dofStyleText_(door, '🚪\nDOOR ' + (i + 1), 18, DOF_C.doorText, true);
     door.sendToBack(); // 아바타가 문 위에 올라와도 가려지지 않게
   }
   const floorEl = dofFindOne_(slide, 'floor');
@@ -319,39 +322,62 @@ function dofBuildBoard_() {
     L.doorAreaX * sx, (L.doorTop - 5) * sy, L.doorAreaW * sx, (L.floorBottom - L.doorTop + 10) * sy);
   floor.setTitle(DOF_TAG + 'floor');
   floor.getFill().setSolidFill(DOF_C.floor);
-  floor.getBorder().setTransparent();
+  floor.getBorder().setWeight(1);
+  floor.getBorder().getLineFill().setSolidFill(DOF_C.floorBorder);
+
+  // 플레이 영역의 목적이 한눈에 보이도록 얇은 안내 라벨을 둔다.
+  const arenaLabel = slide.insertTextBox('CHOOSE YOUR DOOR',
+    (L.doorAreaX + 14) * sx, (L.doorTop + 5) * sy, 150 * sx, 14 * sy);
+  dofStyleText_(arenaLabel, null, 7, DOF_C.muted, true);
+  arenaLabel.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
 
   // 배너 + 카운트다운
-  const banner = slide.insertTextBox('🎮 운명의 문 — 대기석 아바타를 하나 골라 게임장(가운데)으로 드래그하세요!',
-    L.bannerX * sx, L.bannerY * sy, L.bannerW * sx, L.bannerH * sy);
-  banner.setTitle(DOF_TAG + 'banner');
-  dofStyleText_(banner, null, 14, DOF_C.banner, true);
+  const brand = slide.insertTextBox('SLIIIDE  /  운명의 문',
+    L.bannerX * sx, L.bannerY * sy, 145 * sx, L.bannerH * sy);
+  dofStyleText_(brand, null, 11, DOF_C.gold, true);
+  brand.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
 
-  const clock = slide.insertTextBox('⏳ --',
+  const banner = slide.insertTextBox('아바타를 골라 가운데 게임장으로 드래그하세요',
+    (L.bannerX + 150) * sx, L.bannerY * sy, (L.bannerW - 150) * sx, L.bannerH * sy);
+  banner.setTitle(DOF_TAG + 'banner');
+  dofStyleText_(banner, null, 12, DOF_C.banner, true);
+  banner.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
+
+  const clockCard = slide.insertShape(SlidesApp.ShapeType.ROUND_RECTANGLE,
+    L.clockX * sx, L.clockY * sy, L.clockW * sx, L.clockH * sy);
+  clockCard.getFill().setSolidFill(DOF_C.panel);
+  clockCard.getBorder().setWeight(1);
+  clockCard.getBorder().getLineFill().setSolidFill(DOF_C.panelBorder);
+
+  const clock = slide.insertTextBox('⏳  --',
     L.clockX * sx, L.clockY * sy, L.clockW * sx, L.clockH * sy);
   clock.setTitle(DOF_TAG + 'clock');
-  dofStyleText_(clock, null, 16, '#FFD966', true);
+  dofStyleText_(clock, null, 15, DOF_C.gold, true);
 
   // 우측 패널: 순위표 + 로그
   const panel = slide.insertShape(SlidesApp.ShapeType.ROUND_RECTANGLE,
     L.panelX * sx, L.panelY * sy, L.panelW * sx, L.panelH * sy);
   panel.getFill().setSolidFill(DOF_C.panel);
-  panel.getBorder().setTransparent();
-  const stand = slide.insertTextBox('🏆 순위표\n(게임 시작 전)',
-    (L.panelX + 6) * sx, (L.panelY + 6) * sy, (L.panelW - 12) * sx, (L.panelH - 12) * sy);
+  panel.getBorder().setWeight(1);
+  panel.getBorder().getLineFill().setSolidFill(DOF_C.panelBorder);
+  const stand = slide.insertTextBox('LEADERBOARD\n\n게임 시작 전',
+    (L.panelX + 11) * sx, (L.panelY + 10) * sy, (L.panelW - 22) * sx, (L.panelH - 20) * sy);
   stand.setTitle(DOF_TAG + 'standings');
   dofStyleText_(stand, null, 9, DOF_C.panelText, false);
+  stand.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
 
   // 대기석 (게임 시작 후 탈락 존으로 전환)
   const strip = slide.insertShape(SlidesApp.ShapeType.ROUND_RECTANGLE,
     L.stripX * sx, L.stripY * sy, L.stripW * sx, L.stripH * sy);
   strip.setTitle(DOF_TAG + 'strip');
   strip.getFill().setSolidFill(DOF_C.strip);
-  strip.getBorder().setTransparent();
-  const stripLabel = slide.insertTextBox('🪑 대기석 → 참가하려면 아바타를 위로! (시작 후엔 탈락 존)',
-    (L.stripX + 6) * sx, (L.stripY + 2) * sy, (L.stripW - 12) * sx, 16 * sy);
+  strip.getBorder().setWeight(1);
+  strip.getBorder().getLineFill().setSolidFill(DOF_C.panelBorder);
+  const stripLabel = slide.insertTextBox('WAITING LOUNGE   ·   참가할 캐릭터를 위로 옮겨주세요',
+    (L.stripX + 12) * sx, (L.stripY + 3) * sy, (L.stripW - 24) * sx, 16 * sy);
   stripLabel.setTitle(DOF_TAG + 'stripLabel');
-  dofStyleText_(stripLabel, null, 8, '#8890B5', false);
+  dofStyleText_(stripLabel, null, 8, DOF_C.muted, true);
+  stripLabel.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
 
   // 게임말 12개 (드라이브 이미지, 없으면 이모지 도형으로 대체)
   const blobs = dofAvatarBlobs_();
@@ -364,8 +390,9 @@ function dofBuildBoard_() {
       av = slide.insertImage(blobs[i], x, y, L.avatar * sx, L.avatar * sy);
     } else {
       av = slide.insertShape(SlidesApp.ShapeType.ELLIPSE, x, y, L.avatar * sx, L.avatar * sy);
-      av.getFill().setSolidFill('#FFFFFF');
-      av.getBorder().setTransparent();
+      av.getFill().setSolidFill('#F7F8FC');
+      av.getBorder().setWeight(1);
+      av.getBorder().getLineFill().setSolidFill('#D9DFF0');
       dofStyleText_(av, DOF_AVATAR_EMOJI[i], 16, '#000000', false);
     }
     av.setTitle(DOF_TAG + 'avatar:' + name);
@@ -397,12 +424,12 @@ function dofAvatarBlobs_() {
 function dofUpdateStandings_(st, slide) {
   const rows = Object.keys(st.players).map(id => st.players[id]);
   rows.sort((a, b) => (a.rank || 999) - (b.rank || 999));
-  const lines = ['🏆 순위표'];
+  const lines = ['LEADERBOARD', '────────────'];
   rows.forEach(p => {
     lines.push((p.rank ? p.rank + '위' : '생존') + '  ' + p.label + (p.alive ? ' ✅' : ''));
   });
   lines.push('');
-  lines.push('📜 로그');
+  lines.push('GAME LOG');
   st.log.forEach(l => lines.push('· ' + l));
   dofSetText_(slide, 'standings', lines.join('\n'));
 }

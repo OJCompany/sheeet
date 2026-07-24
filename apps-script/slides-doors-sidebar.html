@@ -2,22 +2,30 @@
      Apps Script 프로젝트에서 파일명을 정확히 slides-doors-sidebar 로 생성할 것.
      이 창이 열려 있는 동안 2초마다 서버 tick을 호출해 게임 루프를 돌린다. -->
 <style>
-  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 12px; background: #101426; color: #D6DAF0; }
-  h3 { margin: 0 0 10px; font-size: 15px; color: #FFD966; }
-  button { display: block; width: 100%; margin: 6px 0; padding: 10px; border: 0; border-radius: 8px;
-           font-size: 13px; font-weight: 700; cursor: pointer; }
-  #btnSetup { background: #3949AB; color: #fff; }
-  #btnStart { background: #43A047; color: #fff; }
-  #btnJudge { background: #FB8C00; color: #fff; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #0B1020; color: #E6EAF5; }
+  h3 { margin: 0 0 4px; font-size: 17px; color: #FFD978; letter-spacing: -.2px; }
+  .sub { margin: 0 0 16px; color: #8F9AB8; font-size: 11px; }
+  button { display: block; width: 100%; margin: 8px 0; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px;
+           font-size: 13px; font-weight: 700; cursor: pointer; transition: filter .15s, transform .15s; }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: scale(.98); }
+  #btnSetup { background: #1A2440; border-color: #344262; color: #DDE3F5; }
+  #btnStart { background: #6878F5; color: #fff; }
+  #btnJudge { background: #F2C66D; color: #30210A; }
   button:disabled { opacity: .45; cursor: default; }
-  #stat { margin: 10px 0; padding: 10px; background: #1B2240; border-radius: 8px; font-size: 12px; line-height: 1.6; }
-  #log { font-size: 11px; color: #8890B5; white-space: pre-wrap; }
+  #stat { margin: 14px 0 10px; padding: 12px; background: #121A2E; border: 1px solid #2A3654; border-radius: 12px; font-size: 12px; line-height: 1.6; }
+  #phase { font-weight: 700; }
+  #info { margin: 4px 0 0 14px; color: #AAB3CC; }
+  #log { padding: 0 4px; font-size: 11px; line-height: 1.65; color: #8F9AB8; white-space: pre-wrap; }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-  .on { background: #43A047; } .off { background: #E53935; }
-  label { font-size: 12px; display: block; margin-top: 8px; }
+  .on { background: #32B67A; box-shadow: 0 0 0 3px rgba(50,182,122,.14); } .off { background: #F05252; }
+  label { font-size: 11px; color: #AAB3CC; display: flex; gap: 6px; align-items: flex-start; margin-top: 14px; line-height: 1.45; }
+  input { accent-color: #6878F5; margin-top: 2px; }
 </style>
 
 <h3>🎮 운명의 문</h3>
+<p class="sub">HOST CONTROL PANEL</p>
 <button id="btnSetup">🧱 보드 생성 (리셋)</button>
 <button id="btnStart">🚀 게임 시작</button>
 <button id="btnJudge">⚡ 즉시 판정</button>
