@@ -105,7 +105,8 @@ function handleHttp(params) {
   let out;
   try {
     if (params.debug === 'values' && params.fileId && params.range) {
-      // 개발 검증용: 생성된 방 시트의 실제 셀 상태를 읽는다 (호스트 소유 파일만 열림)
+      // 개발 검증용 — 키 없이는 차단 (라이어 제시어 등 비밀 셀 유출 방지)
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('debug key required');
       const dbgSs = SpreadsheetApp.openById(String(params.fileId));
       const dbgSheet = params.sheetName
         ? dbgSs.getSheetByName(String(params.sheetName))
@@ -1012,7 +1013,7 @@ const HR = {
   trackLen: 21,      // 달리는 칸 수 (마지막 오프셋 = 결승)
   betRow: 13,        // 베팅 입력 시작 행
   betMax: 12,
-  start: { row: 12, col: 8 },   // H12 체크박스
+  start: { row: 12, col: 10 },  // J12 체크박스 (라벨은 J11) — 베팅 안내문과 겹치지 않게
   banner: { row: 2, col: 2, width: 22 },
   laneColors: ['#EAF6EA', '#DFF0DF'],
   gold: '#FFD966',
@@ -1050,9 +1051,8 @@ function drawHorseBoard(sheet) {
   sheet.setColumnWidths(HR.trackCol, HR.trackLen + 1, 27);
   sheet.setRowHeights(HR.laneRow, 5, 32);
 
-  // 베팅 표
-  sheet.getRange(11, 3).setValue('💰 베팅: 한 줄에 자기 [닉네임]과 [말 번호]를 적으세요')
-    .setFontWeight('bold');
+  // 베팅 표 (안내문은 짧게 — 오른쪽 시작 라벨과 겹치지 않는 길이)
+  sheet.getRange(11, 3).setValue('💰 베팅하세요 ↓').setFontWeight('bold');
   sheet.getRange(12, 3).setValue('닉네임').setFontWeight('bold');
   sheet.getRange(12, 4).setValue('말 번호').setFontWeight('bold');
   sheet.getRange(HR.betRow, 3, HR.betMax, 2)
@@ -1061,10 +1061,10 @@ function drawHorseBoard(sheet) {
   sheet.setColumnWidth(3, 110);
   sheet.setColumnWidth(4, 70);
 
-  // 시작 체크박스 (베팅 표 오른쪽)
-  sheet.getRange(HR.start.row - 1, HR.start.col - 1)
+  // 시작 체크박스 — HR.start 좌표 그대로 사용 (라벨은 한 칸 위)
+  sheet.getRange(HR.start.row - 1, HR.start.col)
     .setValue('🏁 레이스 시작 ↓').setFontWeight('bold');
-  sheet.getRange(HR.start.row, HR.start.col - 1).insertCheckboxes();
+  sheet.getRange(HR.start.row, HR.start.col).insertCheckboxes();
 }
 
 /** 트랙을 출발 상태로 다시 그린다 */
@@ -1086,7 +1086,7 @@ function hrResetTrack(sheet) {
 function handleHorseEdit(e, room, roomId) {
   const sheet = e.range.getSheet();
   if (sheet.getName() !== HR.sheet) return;
-  if (e.range.getRow() === HR.start.row && e.range.getColumn() === HR.start.col - 1
+  if (e.range.getRow() === HR.start.row && e.range.getColumn() === HR.start.col
       && e.value === 'TRUE') {
     e.range.setValue(false);
     if (room.phase !== 'idle') return;
@@ -1650,6 +1650,7 @@ function handleMazeEdit(e, room, roomId) {
     if (!cmd) return;
 
     const me = room.p[srcIdx];
+    let bumped = false;
     if (cmd === 'a') me.dir = (me.dir + 3) % 4;
     else if (cmd === 'd') me.dir = (me.dir + 1) % 4;
     else {
@@ -1661,9 +1662,16 @@ function handleMazeEdit(e, room, roomId) {
         me.c = nc;
         me.steps++;
       } else {
-        sheet.getRange(MZ.banner.row, MZ.banner.col).setValue('🧱 쿵! 벽입니다')
+        bumped = true;
+        sheet.getRange(MZ.banner.row, MZ.banner.col).setValue('🧱 쿵! 벽입니다 — 다른 방향으로!')
           .setFontColor(FLASH_RED);
       }
+    }
+    // 벽 충돌이 아니면 배너를 기본 안내로 복구 (쿵! 메시지가 눌러붙지 않게)
+    if (!bumped) {
+      sheet.getRange(MZ.banner.row, MZ.banner.col)
+        .setValue('🌀 이동 칸에 w(전진)·a(좌회전)·d(우회전)·s(후진)를 입력! 노란 문(출구)을 먼저 찾으면 승리')
+        .setFontColor('#000000');
     }
 
     // 탈출 판정
