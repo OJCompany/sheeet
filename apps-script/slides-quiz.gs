@@ -27,6 +27,9 @@
  *   - 다수결로 카테고리 확정 (동표는 추첨)
  *   - 문제 7개, 각 25초. 아바타를 보기 카드 위로 → 정답 +10점
  *   - 시간 안에 카드 근처에 없으면 무응답(0점)
+ *   - 답 확정(락인): 같은 카드 위에 ~4초 머물면 답으로 확정된다. 확정 후 남이
+ *     내 말을 옮겨도 판정은 확정된 답 기준 → 훼방 방지. (슬라이드는 도형별
+ *     편집 권한이 없어 물리적으로 못 움직이게 하는 건 불가능)
  *   - 최종 점수로 순위. 동점은 공동 순위.
  */
 
@@ -38,6 +41,10 @@ const QZ_REVEAL_MS = 5000;        // 정답 공개 후 다음 문제까지 대�
 const QZ_NUM_QUESTIONS = 7;       // 한 게임 문제 수 (은행보다 크면 은행 크기)
 const QZ_SCORE = 10;              // 정답 점수
 const QZ_MAX_LOG = 9;
+// 답 확정(락인)에 필요한 연속 tick 수. 슬라이드는 도형별 권한이 없어 남이 내 말을
+// 옮기는 걸 막을 수 없으므로, "카드 위에 ~4초(2 tick) 머문 위치"를 답으로 확정한다.
+// 확정 후 누가 말을 치워도 판정은 확정된 답을 쓴다 (훼방 방지).
+const QZ_LOCK_TICKS = 2;
 
 // 게임말: 12지신. 운명의 문과 같은 드라이브 폴더를 쓴다.
 const QZ_AVATARS = ['쥐', '소', '호랑이', '토끼', '용', '뱀', '말', '양', '원숭이', '닭', '개', '돼지'];
@@ -154,15 +161,14 @@ function qzStart() {
     const slide = qzSlide_();
     const sy = qzScaleY_();
     const joined = [];
+    const bench = [];
     qzFindAll_(slide, 'avatar').forEach(el => {
       const cy = el.getTop() + el.getHeight() / 2;
-      if (cy < QZ_L.stripY * sy) {
-        joined.push(el);
-      } else {
-        el.remove(); // 대기석에 남은 아바타는 정리
-      }
+      if (cy < QZ_L.stripY * sy) joined.push(el);
+      else bench.push(el);
     });
     if (joined.length < 2) return qzStatus_('참가자가 2명 이상 필요합니다. (게임장으로 올라온 아바타: ' + joined.length + ')');
+    bench.forEach(el => el.remove()); // 시작이 확정된 뒤에만 대기석 정리 (실패 시 아바타 보존)
 
     st.players = {};
     joined.forEach(el => {
@@ -194,7 +200,10 @@ function qzTick() {
         if (st.phase === 'VOTE') qzJudgeVote_(st, slide);
         else qzJudgeQuestion_(st, slide);
       } else {
-        qzSetText_(slide, 'clock', '⏳ ' + remain + '초');
+        qzTrackPicks_(st, slide);
+        const total = Object.keys(st.players).length;
+        const answered = Object.keys(st.players).filter(id => st.players[id].lp != null).length;
+        qzSetText_(slide, 'clock', '⏳ ' + remain + '초 · ✋ ' + answered + '/' + total);
       }
       qzSaveState_(st);
     } else if (st.phase === 'REVEAL' && now >= st.revealUntil) {
@@ -238,6 +247,7 @@ function qzReset() {
 function qzStartVote_(st, slide) {
   st.phase = 'VOTE';
   st.deadline = Date.now() + QZ_VOTE_SEC * 1000;
+  qzResetLocks_(st);
   qzRenderCards_(slide, QZ_CATS.map(cat => QZ_BANK[cat].emoji + ' ' + cat), QZ_C.vote);
   qzSetText_(slide, 'question', '🗳️ 어떤 퀴즈로 할까요? 아바타를 원하는 카테고리 카드 위로!');
   qzSetText_(slide, 'banner', '카테고리 투표 — 다수결로 결정!');
@@ -246,7 +256,7 @@ function qzStartVote_(st, slide) {
 }
 
 function qzJudgeVote_(st, slide) {
-  const picks = qzPicks_(st, slide); // objectId → cardIndex(-1 무응답)
+  const picks = qzFinalPicks_(st, slide); // objectId → cardIndex(-1 무응답)
   const tally = [0, 0, 0, 0];
   Object.keys(picks).forEach(id => { if (picks[id] >= 0) tally[picks[id]] += 1; });
   const max = Math.max.apply(null, tally);
@@ -298,6 +308,7 @@ function qzStartQuestion_(st, slide) {
 
   st.phase = 'QUESTION';
   st.deadline = Date.now() + QZ_ROUND_SEC * 1000;
+  qzResetLocks_(st);
 
   const marks = ['①', '②', '③', '④'];
   qzRenderCards_(slide, st.choices.map((c, i) => marks[i] + ' ' + c), QZ_C.card);
@@ -308,7 +319,7 @@ function qzStartQuestion_(st, slide) {
 }
 
 function qzJudgeQuestion_(st, slide) {
-  const picks = qzPicks_(st, slide);
+  const picks = qzFinalPicks_(st, slide);
   const marks = ['①', '②', '③', '④'];
   const winners = [];
   Object.keys(st.players).forEach(id => {
@@ -349,6 +360,44 @@ function qzFinish_(st, slide) {
   qzLog_(st, '우승 ' + tops + ' (' + rows[0].score + '점)');
   qzUpdateStandings_(st, slide);
   st.phase = 'DONE';
+}
+
+// 라운드 시작 시 락인 상태 초기화. cp=직전 tick의 위치, cs=연속 유지 tick 수, lp=확정된 답.
+function qzResetLocks_(st) {
+  Object.keys(st.players).forEach(id => {
+    const p = st.players[id];
+    p.cp = null; p.cs = 0; p.lp = null;
+  });
+}
+
+/**
+ * 매 tick 호출: 같은 카드 위에 QZ_LOCK_TICKS번 연속 머문 위치를 답으로 확정(lp).
+ * 슬라이드는 도형별 편집 제한이 불가능하므로, 확정된 답을 판정에 쓰는 것으로
+ * "남이 내 말을 옮기는" 훼방을 무력화한다. 답을 바꾸려면 새 카드에 다시 ~4초 머물면 된다.
+ */
+function qzTrackPicks_(st, slide) {
+  const picks = qzPicks_(st, slide);
+  Object.keys(st.players).forEach(id => {
+    const p = st.players[id];
+    const cur = picks[id];
+    if (cur === p.cp) { p.cs = (p.cs || 0) + 1; } else { p.cp = cur; p.cs = 1; }
+    if (p.cs >= QZ_LOCK_TICKS && cur >= 0) p.lp = cur;
+  });
+}
+
+/**
+ * 판정용 최종 답: 확정된 답(lp)이 있으면 그것을, 없으면 마감 순간의 위치를 쓴다.
+ * (막판에 남이 말을 치워도 lp가 있으면 영향 없음)
+ */
+function qzFinalPicks_(st, slide) {
+  qzTrackPicks_(st, slide); // 마감 직전 위치도 한 번 더 집계 (연속 유지 중이면 확정됨)
+  const picks = qzPicks_(st, slide);
+  const out = {};
+  Object.keys(st.players).forEach(id => {
+    const p = st.players[id];
+    out[id] = (p.lp != null) ? p.lp : picks[id];
+  });
+  return out;
 }
 
 /**
