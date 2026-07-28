@@ -3,25 +3,25 @@
      이 창이 열려 있는 동안 2초마다 서버 tick을 호출해 게임 루프를 돌린다. -->
 <style>
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #0B1020; color: #E6EAF5; }
-  h3 { margin: 0 0 4px; font-size: 17px; color: #FFD978; letter-spacing: -.2px; }
-  .sub { margin: 0 0 16px; color: #8F9AB8; font-size: 11px; }
-  button { display: block; width: 100%; margin: 8px 0; padding: 11px 12px; border: 1px solid transparent; border-radius: 10px;
+  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #FFF8EF; color: #5C4033; }
+  h3 { margin: 0 0 4px; font-size: 17px; color: #FF8A3D; letter-spacing: -.2px; }
+  .sub { margin: 0 0 16px; color: #C09A6B; font-size: 11px; }
+  button { display: block; width: 100%; margin: 8px 0; padding: 11px 12px; border: 1px solid transparent; border-radius: 14px;
            font-size: 13px; font-weight: 700; cursor: pointer; transition: filter .15s, transform .15s; }
-  button:hover { filter: brightness(1.08); }
+  button:hover { filter: brightness(1.04); }
   button:active { transform: scale(.98); }
-  #btnSetup { background: #1A2440; border-color: #344262; color: #DDE3F5; }
-  #btnStart { background: #6878F5; color: #fff; }
-  #btnJudge { background: #F2C66D; color: #30210A; }
+  #btnSetup { background: #FFFFFF; border-color: #FFD9A0; color: #8A6A4F; }
+  #btnStart { background: #FF9EB5; color: #fff; }
+  #btnJudge { background: #FFE08A; color: #6B4E0E; }
   button:disabled { opacity: .45; cursor: default; }
-  #stat { margin: 14px 0 10px; padding: 12px; background: #121A2E; border: 1px solid #2A3654; border-radius: 12px; font-size: 12px; line-height: 1.6; }
+  #stat { margin: 14px 0 10px; padding: 12px; background: #FFF0F6; border: 1px solid #F6C9DD; border-radius: 14px; font-size: 12px; line-height: 1.6; }
   #phase { font-weight: 700; }
-  #info { margin: 4px 0 0 14px; color: #AAB3CC; }
-  #log { padding: 0 4px; font-size: 11px; line-height: 1.65; color: #8F9AB8; white-space: pre-wrap; }
+  #info { margin: 4px 0 0 14px; color: #A57B62; }
+  #log { padding: 0 4px; font-size: 11px; line-height: 1.65; color: #C09A6B; white-space: pre-wrap; }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-  .on { background: #32B67A; box-shadow: 0 0 0 3px rgba(50,182,122,.14); } .off { background: #F05252; }
-  label { font-size: 11px; color: #AAB3CC; display: flex; gap: 6px; align-items: flex-start; margin-top: 14px; line-height: 1.45; }
-  input { accent-color: #6878F5; margin-top: 2px; }
+  .on { background: #58C776; box-shadow: 0 0 0 3px rgba(88,199,118,.18); } .off { background: #F05252; }
+  label { font-size: 11px; color: #A57B62; display: flex; gap: 6px; align-items: flex-start; margin-top: 14px; line-height: 1.45; }
+  input { accent-color: #FF9EB5; margin-top: 2px; }
 </style>
 
 <h3>🧠 퀴즈쇼</h3>

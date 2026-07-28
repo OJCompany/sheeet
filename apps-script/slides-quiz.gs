@@ -101,14 +101,18 @@ const QZ_L = {
   avatar: 34,
 };
 
+// 아기자기 파스텔 팔레트: 크림 배경 + 하늘색 게임장 + 핑크/바나나 카드
 const QZ_C = {
-  bg: '#0B1020', strip: '#11182B', floor: '#141D33',
-  floorBorder: '#2B3858', card: '#1C2745', cardBorder: '#39466B', cardText: '#E6EAF5',
-  correct: '#32B67A', wrong: '#403050', vote: '#243059',
-  banner: '#F7F8FC', muted: '#8F9AB8',
-  panel: '#121A2E', panelBorder: '#2A3654', panelText: '#E6EAF5',
-  accent: '#7C8CFF', gold: '#FFD978',
+  bg: '#FFF8EF', strip: '#FFEFD9', floor: '#EAF7FF',
+  floorBorder: '#BFE3F7', card: '#FFFFFF', cardBorder: '#FFC7D9', cardText: '#5C4033',
+  correct: '#9EE6A8', correctText: '#1E5B34', wrong: '#F1E7E0', vote: '#FFF6CC',
+  banner: '#5C4033', muted: '#C09A6B',
+  panel: '#FFF0F6', panelBorder: '#F6C9DD', panelText: '#7A4A5E',
+  accent: '#FF9EB5', gold: '#FF8A3D',
 };
+
+// 둥글둥글한 무료 한글 폰트 (Slides 기본 제공). 없으면 자동 폴백된다.
+const QZ_FONT = 'Jua';
 
 // ---------- 메뉴 / 사이드바 ----------
 
@@ -320,7 +324,7 @@ function qzJudgeQuestion_(st, slide) {
     const shape = el.asShape();
     if (i === st.correctCard) {
       shape.getFill().setSolidFill(QZ_C.correct);
-      qzStyleText_(shape, '✅ ' + marks[i] + ' ' + st.choices[i], 13, '#FFFFFF', true);
+      qzStyleText_(shape, '✅ ' + marks[i] + ' ' + st.choices[i], 13, QZ_C.correctText, true);
     } else {
       shape.getFill().setSolidFill(QZ_C.wrong);
     }
@@ -423,18 +427,18 @@ function qzBuildBoard_() {
   floor.getBorder().getLineFill().setSolidFill(QZ_C.floorBorder);
 
   // 문제 텍스트
-  const qbox = slide.insertTextBox('게임을 시작하면 여기에 문제가 나옵니다',
+  const qbox = slide.insertTextBox('✨ 게임을 시작하면 여기에 문제가 나와요 ✨',
     L.qX * sx, L.qY * sy, L.qW * sx, L.qH * sy);
   qbox.setTitle(QZ_TAG + 'question');
   qzStyleText_(qbox, null, 13, QZ_C.banner, true);
 
   // 배너 + 카운트다운
-  const brand = slide.insertTextBox('SLIIIDE  /  퀴즈쇼',
+  const brand = slide.insertTextBox('🎪 SLIIIDE 퀴즈쇼',
     L.bannerX * sx, L.bannerY * sy, 145 * sx, L.bannerH * sy);
   qzStyleText_(brand, null, 11, QZ_C.gold, true);
   brand.getText().getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.START);
 
-  const banner = slide.insertTextBox('아바타를 골라 가운데 게임장으로 드래그하세요',
+  const banner = slide.insertTextBox('🎈 친구를 골라 가운데 게임장으로 드래그하세요!',
     (L.bannerX + 150) * sx, L.bannerY * sy, (L.bannerW - 150) * sx, L.bannerH * sy);
   banner.setTitle(QZ_TAG + 'banner');
   qzStyleText_(banner, null, 12, QZ_C.banner, true);
@@ -470,7 +474,7 @@ function qzBuildBoard_() {
   strip.getFill().setSolidFill(QZ_C.strip);
   strip.getBorder().setWeight(1);
   strip.getBorder().getLineFill().setSolidFill(QZ_C.panelBorder);
-  const stripLabel = slide.insertTextBox('WAITING LOUNGE   ·   참가할 캐릭터를 위로 옮겨주세요',
+  const stripLabel = slide.insertTextBox('🧸 WAITING LOUNGE   ·   참가할 캐릭터를 위로 옮겨주세요',
     (L.stripX + 12) * sx, (L.stripY + 3) * sy, (L.stripW - 24) * sx, 16 * sy);
   stripLabel.setTitle(QZ_TAG + 'stripLabel');
   qzStyleText_(stripLabel, null, 8, QZ_C.muted, true);
@@ -487,9 +491,9 @@ function qzBuildBoard_() {
       av = slide.insertImage(blobs[i], x, y, L.avatar * sx, L.avatar * sy);
     } else {
       av = slide.insertShape(SlidesApp.ShapeType.ELLIPSE, x, y, L.avatar * sx, L.avatar * sy);
-      av.getFill().setSolidFill('#F7F8FC');
+      av.getFill().setSolidFill('#FFFFFF');
       av.getBorder().setWeight(1);
-      av.getBorder().getLineFill().setSolidFill('#D9DFF0');
+      av.getBorder().getLineFill().setSolidFill(QZ_C.cardBorder);
       qzStyleText_(av, QZ_AVATAR_EMOJI[i], 16, '#000000', false);
     }
     av.setTitle(QZ_TAG + 'avatar:' + name);
@@ -574,7 +578,7 @@ function qzSetText_(slide, tag, text) {
 function qzStyleText_(shape, text, size, color, bold) {
   const tr = shape.getText();
   if (text !== null) tr.setText(text);
-  tr.getTextStyle().setFontSize(size).setForegroundColor(color).setBold(!!bold);
+  tr.getTextStyle().setFontFamily(QZ_FONT).setFontSize(size).setForegroundColor(color).setBold(!!bold);
   tr.getParagraphStyle().setParagraphAlignment(SlidesApp.ParagraphAlignment.CENTER);
   shape.setContentAlignment(SlidesApp.ContentAlignment.MIDDLE);
 }
