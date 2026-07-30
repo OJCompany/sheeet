@@ -242,6 +242,14 @@ function createSlidesRoom(spec) {
       spec.name + ' 템플릿이 등록되지 않았습니다 — 스크립트 속성 ' +
       spec.templateProp + '에 템플릿 프레젠테이션 파일 ID를 넣어주세요 (SETUP.md §9)');
   }
+  // 빈 템플릿 가드: 판이 안 차려진 템플릿을 복제하면 "빈 깡통 방"이 나간다.
+  // 기본 제목 슬라이드는 도형이 2개뿐 — 보드가 그려졌다면 도형이 훨씬 많다.
+  const tplSlides = SlidesApp.openById(templateId).getSlides();
+  if (!tplSlides.length || tplSlides[0].getShapes().length < 5) {
+    throw new Error(
+      spec.name + ' 템플릿이 아직 비어 있습니다 — 호스트가 템플릿 프레젠테이션을 열어 ' +
+      '게임 메뉴의 [보드 생성]을 먼저 실행해 주세요 (1회)');
+  }
   const roomId = Utilities.getUuid().slice(0, 8);
   const copy = DriveApp.getFileById(templateId)
     .makeCopy('SLIIIDE ' + spec.name + ' ' + roomId);
