@@ -72,6 +72,11 @@ function onOpen() {
     .addItem('보드 생성', 'dofSetup')
     .addItem('컨트롤 열기', 'dofOpenSidebar')
     .addToUi();
+  // 판이 없으면 자동 생성 — 로그인한 사람이 열기만 해도 게임판이 깔린다.
+  // 상태 키가 있으면(=이미 게임판 존재) 건너뛰므로 진행 중 게임을 초기화하지 않는다.
+  try {
+    if (!PropertiesService.getDocumentProperties().getProperty(DOF_KEY)) dofSetup();
+  } catch (e) { /* 단순 트리거 권한 제약 시 메뉴 [보드 생성]으로 폴백 */ }
 }
 
 function dofOpenSidebar() {

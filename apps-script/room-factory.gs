@@ -242,15 +242,7 @@ function createSlidesRoom(spec) {
       spec.name + ' 템플릿이 등록되지 않았습니다 — 스크립트 속성 ' +
       spec.templateProp + '에 템플릿 프레젠테이션 파일 ID를 넣어주세요 (SETUP.md §9)');
   }
-  // 빈 템플릿 가드: 판이 안 차려진 템플릿을 복제하면 "빈 깡통 방"이 나간다.
-  // (웹앱에 SlidesApp 권한이 없어 내용 검사는 불가 — 파일이 생성 후 한 번도
-  //  편집되지 않았는지로 판별한다. [보드 생성]을 실행하면 수정 시각이 갱신된다.)
-  const tplFile = DriveApp.getFileById(templateId);
-  if (tplFile.getLastUpdated().getTime() - tplFile.getDateCreated().getTime() < 90 * 1000) {
-    throw new Error(
-      spec.name + ' 템플릿이 아직 비어 있습니다 — 호스트가 템플릿 프레젠테이션을 열어 ' +
-      '게임 메뉴의 [보드 생성]을 먼저 실행해 주세요 (1회)');
-  }
+  // 빈 템플릿이어도 OK — 방(복제본)을 로그인 사용자가 처음 열면 onOpen이 판을 자동 생성한다.
   const roomId = Utilities.getUuid().slice(0, 8);
   const copy = DriveApp.getFileById(templateId)
     .makeCopy('SLIIIDE ' + spec.name + ' ' + roomId);
@@ -263,7 +255,7 @@ function createSlidesRoom(spec) {
       role: spec.roleLabel(0),
       url: 'https://docs.google.com/presentation/d/' + copy.getId() + '/edit',
     }],
-    hint: '전원이 같은 링크로 입장합니다. 호스트(구글 로그인 필요)는 슬라이드 상단 메뉴에서 게임을 시작하세요 — 첫 실행 때 권한 승인 창이 한 번 뜹니다.',
+    hint: '전원이 같은 링크로 입장합니다. 구글에 로그인한 사람이 처음 열면 게임판이 자동으로 차려집니다(수십 초). 게임 시작은 그 사람이 상단 게임 메뉴에서 — 첫 실행 때 권한 승인 창이 한 번 뜹니다.',
   };
 }
 
