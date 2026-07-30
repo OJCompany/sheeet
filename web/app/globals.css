@@ -166,6 +166,32 @@ body {
   transform: scale(0.97);
 }
 
+.config .options {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.config label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.config select {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .status {
   margin-top: 20px;
   font-size: 15px;
