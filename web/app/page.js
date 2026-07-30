@@ -1,7 +1,62 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+
+const AD_CELLS = 240; // 24 × 10 셀 광고판
+
+function AdBoard() {
+  const [ads, setAds] = useState([]);
+  useEffect(() => {
+    fetch('/api/ads')
+      .then(r => r.json())
+      .then(d => { if (d.ok) setAds(d.ads); })
+      .catch(() => {});
+  }, []);
+
+  // 광고를 칸수만큼 연속 셀에 배치
+  const cells = [];
+  ads.forEach(ad => {
+    for (let i = 0; i < ad.cells && cells.length < AD_CELLS; i++) {
+      cells.push({ ...ad, first: i === 0 });
+    }
+  });
+  while (cells.length < AD_CELLS) cells.push(null);
+
+  const inquiry = 'mailto:wjdgocks777@gmail.com?subject=' +
+    encodeURIComponent('SHEEET 셀 광고 문의');
+
+  return (
+    <section className="adboard-wrap">
+      <h2>💰 셀 광고판 <span className="adboard-sub">— The Million Dollar Sheet</span></h2>
+      <p className="adboard-hint">
+        이 광고판의 장부도 구글 시트다. 시트에 한 줄 적으면 여기 셀에 게재된다 —{' '}
+        <a href={inquiry}>칸 구매 문의</a>
+      </p>
+      <div className="adboard">
+        {cells.map((c, i) =>
+          c ? (
+            <a
+              key={i}
+              className="adcell filled"
+              style={{ background: c.color }}
+              href={c.url || inquiry}
+              target={c.url && c.url.startsWith('http') ? '_blank' : undefined}
+              rel="noreferrer"
+              title={c.name}
+            >
+              {c.first ? c.emoji : ''}
+            </a>
+          ) : (
+            <a key={i} className="adcell empty" href={inquiry} title="이 칸은 비어 있습니다 — 광고 문의">
+              {''}
+            </a>
+          )
+        )}
+      </div>
+    </section>
+  );
+}
 
 const GAMES = [
   { id: 'omok', name: '오목', emoji: '⚫', desc: '1:1 대전 · 다섯 개를 이으면 승리', players: 2, ready: true },
@@ -199,6 +254,8 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <AdBoard />
     </main>
   );
 }

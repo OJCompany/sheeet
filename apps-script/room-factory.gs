@@ -132,6 +132,8 @@ function handleHttp(params) {
         maxRows: dbgSheet.getMaxRows(),
         values: dbgSheet.getRange(String(params.range)).getDisplayValues(),
       };
+    } else if (params.ads === 'list') {
+      out = { ok: true, ads: adsList() };
     } else if (params.admin === 'setprop' && params.prop && params.value) {
       // 호스트 전용 설정 등록 (키 게이트 + 허용 목록) — 슬라이드 템플릿 ID 등록용
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
@@ -153,6 +155,40 @@ function handleHttp(params) {
   }
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ---------- 셀 광고판 (The Million Dollar Sheet) ----------
+// 광고 장부도 시트다: 호스트 드라이브의 "SHEEET 광고판 장부"에 한 줄 적으면
+// 랜딩 페이지의 셀 광고판에 게재된다. 게재 열이 TRUE인 행만 노출.
+
+function adsList() {
+  const props = PropertiesService.getScriptProperties();
+  let id = props.getProperty('ADS_SHEET_ID');
+  if (!id) {
+    const ss = SpreadsheetApp.create('SHEEET 광고판 장부');
+    const sh = ss.getSheets()[0].setName('광고');
+    sh.getRange(1, 1, 1, 6)
+      .setValues([['이름', '이모지', '색상(hex)', '링크', '칸수', '게재(TRUE만 노출)']])
+      .setFontWeight('bold');
+    sh.getRange(2, 1, 2, 6).setValues([
+      ['SHEEET — 시트가 곧 게임방', '🎮', '#188038', 'https://sheeet-zeta.vercel.app', 10, true],
+      ['이 칸, 당신의 광고 자리', '💰', '#F9A825', 'mailto:wjdgocks777@gmail.com?subject=SHEEET 셀 광고 문의', 6, true],
+    ]);
+    sh.setColumnWidths(1, 6, 150);
+    id = ss.getId();
+    props.setProperty('ADS_SHEET_ID', id);
+  }
+  const rows = SpreadsheetApp.openById(id).getSheetByName('광고')
+    .getDataRange().getValues().slice(1);
+  return rows
+    .filter(r => r[0] && (r[5] === true || String(r[5]).toLowerCase() === 'true'))
+    .map(r => ({
+      name: String(r[0]).slice(0, 60),
+      emoji: String(r[1] || '⬜').slice(0, 8),
+      color: /^#[0-9A-Fa-f]{6}$/.test(String(r[2])) ? String(r[2]) : '#CFD8DC',
+      url: /^(https?:\/\/|mailto:)/.test(String(r[3])) ? String(r[3]) : '',
+      cells: Math.min(Math.max(Number(r[4]) || 1, 1), 60),
+    }));
 }
 
 // ---------- 방 생성 ----------
