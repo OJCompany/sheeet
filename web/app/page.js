@@ -3,58 +3,79 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 
-const AD_CELLS = 240; // 24 × 10 셀 광고판
+const AD_INQUIRY = 'mailto:wjdgocks777@gmail.com?subject=' +
+  encodeURIComponent('SHEEET 셀 광고 문의');
 
-function AdBoard() {
+/** 페이지의 빈 공간 전체가 광고판 — 콘텐츠 섬 뒤로 셀 바다가 깔린다 */
+function AdBackdrop() {
   const [ads, setAds] = useState([]);
+  const [dim, setDim] = useState({ cols: 0, rows: 0 });
+
   useEffect(() => {
     fetch('/api/ads')
       .then(r => r.json())
       .then(d => { if (d.ok) setAds(d.ads); })
       .catch(() => {});
+    const calc = () => setDim({
+      cols: Math.ceil(window.innerWidth / 42),
+      rows: Math.ceil(window.innerHeight / 42),
+    });
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
   }, []);
 
-  // 광고를 칸수만큼 연속 셀에 배치
-  const cells = [];
-  ads.forEach(ad => {
-    for (let i = 0; i < ad.cells && cells.length < AD_CELLS; i++) {
-      cells.push({ ...ad, first: i === 0 });
+  const total = dim.cols * dim.rows;
+  if (!total) return null;
+
+  // 광고 블록 배치 — 콘텐츠 기둥(중앙 880px)에 가려지지 않게 좌우 여백 밴드에 흩뿌린다.
+  // 결정적 배치라 새로고침해도 같은 자리.
+  const grid = new Array(total).fill(null);
+  const contentCols = Math.ceil(920 / 42); // 중앙 콘텐츠 폭 + 여유
+  const bandW = Math.max(Math.floor((dim.cols - contentCols) / 2), 2);
+  const rightStart = dim.cols - bandW;
+  ads.forEach((ad, i) => {
+    const leftSide = i % 2 === 0;
+    const bandCols = Math.max(bandW - 1, 1);
+    const len = Math.max(1, Math.min(ad.cells, bandCols));
+    let row = (i * 3 + 1) % dim.rows;
+    const col = leftSide
+      ? (i * 2) % Math.max(bandW - len, 1)
+      : rightStart + ((i * 2) % Math.max(bandW - len, 1));
+    for (let guard = 0; guard < dim.rows; guard++) {
+      const start = row * dim.cols + col;
+      if (grid.slice(start, start + len).every(c => !c)) {
+        for (let k = 0; k < len; k++) grid[start + k] = { ...ad, first: k === 0 };
+        break;
+      }
+      row = (row + 2) % dim.rows;
     }
   });
-  while (cells.length < AD_CELLS) cells.push(null);
-
-  const inquiry = 'mailto:wjdgocks777@gmail.com?subject=' +
-    encodeURIComponent('SHEEET 셀 광고 문의');
 
   return (
-    <section className="adboard-wrap">
-      <h2>💰 셀 광고판 <span className="adboard-sub">— The Million Dollar Sheet</span></h2>
-      <p className="adboard-hint">
-        이 광고판의 장부도 구글 시트다. 시트에 한 줄 적으면 여기 셀에 게재된다 —{' '}
-        <a href={inquiry}>칸 구매 문의</a>
-      </p>
-      <div className="adboard">
-        {cells.map((c, i) =>
-          c ? (
-            <a
-              key={i}
-              className="adcell filled"
-              style={{ background: c.color }}
-              href={c.url || inquiry}
-              target={c.url && c.url.startsWith('http') ? '_blank' : undefined}
-              rel="noreferrer"
-              title={c.name}
-            >
-              {c.first ? c.emoji : ''}
-            </a>
-          ) : (
-            <a key={i} className="adcell empty" href={inquiry} title="이 칸은 비어 있습니다 — 광고 문의">
-              {''}
-            </a>
-          )
-        )}
-      </div>
-    </section>
+    <div
+      className="backdrop"
+      style={{ gridTemplateColumns: `repeat(${dim.cols}, 1fr)` }}
+      aria-hidden="true"
+    >
+      {grid.map((c, i) =>
+        c ? (
+          <a
+            key={i}
+            className="bcell filled"
+            style={{ background: c.color }}
+            href={c.url || AD_INQUIRY}
+            target={c.url && c.url.startsWith('http') ? '_blank' : undefined}
+            rel="noreferrer"
+            title={c.name}
+          >
+            {c.first ? c.emoji : ''}
+          </a>
+        ) : (
+          <a key={i} className="bcell" href={AD_INQUIRY} title="빈 칸 = 광고 자리! 클릭해서 문의" />
+        )
+      )}
+    </div>
   );
 }
 
@@ -156,10 +177,17 @@ export default function Home() {
 
   return (
     <main className="wrap">
-      <span className="logo">SHEEET</span>
-      <p className="tagline">
-        설치도, 가입도, 앱도 없다. <b>링크를 열면 그 시트가 곧 게임방이다.</b>
-      </p>
+      <AdBackdrop />
+      <header className="hero">
+        <span className="logo">SHEEET</span>
+        <p className="tagline">
+          설치도, 가입도, 앱도 없다. <b>링크를 열면 그 시트가 곧 게임방이다.</b>
+        </p>
+        <p className="ad-note">
+          💰 뒤에 보이는 셀은 전부 광고 자리 — 장부도 시트다.{' '}
+          <a href={AD_INQUIRY}>빈 칸 구매 문의</a>
+        </p>
+      </header>
 
       <div className="grid">
         {GAMES.map(game => (
@@ -254,8 +282,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      <AdBoard />
     </main>
   );
 }
