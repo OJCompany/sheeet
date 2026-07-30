@@ -85,6 +85,20 @@ const GAMES = {
     build: buildMazeRoom,
     onEdit: handleMazeEdit,
   },
+  // 슬라이드 게임 — 시트가 아니라 구글 슬라이드 템플릿을 복제해서 방을 만든다.
+  // 템플릿(스크립트 설치 완료본)의 파일 ID를 스크립트 속성에 등록해야 한다.
+  quiz: {
+    name: '퀴즈쇼',
+    slides: true,
+    templateProp: 'QUIZ_TEMPLATE_ID',
+    roleLabel: () => '🧠 전원 입장 링크',
+  },
+  doors: {
+    name: '운명의 문',
+    slides: true,
+    templateProp: 'DOORS_TEMPLATE_ID',
+    roleLabel: () => '🚪 전원 입장 링크',
+  },
 };
 
 // ---------- HTTP 엔드포인트 ----------
@@ -138,6 +152,7 @@ function handleHttp(params) {
 function createRoom(game, players, opts) {
   const spec = GAMES[game];
   if (!spec) throw new Error('없는 게임: ' + game);
+  if (spec.slides) return createSlidesRoom(spec);
   const n = Math.min(Math.max(players || spec.minPlayers, spec.minPlayers), spec.maxPlayers);
 
   const lock = LockService.getScriptLock();
@@ -171,6 +186,32 @@ function createRoom(game, players, opts) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** 슬라이드 게임 방 — 스크립트가 설치된 템플릿 프레젠테이션을 복제해서 연다.
+ *  전원이 같은 링크 하나로 입장하고, 게임 루프는 호스트의 사이드바가 돌리므로
+ *  시트 게임과 달리 트리거·방 상태 저장이 필요 없다. */
+function createSlidesRoom(spec) {
+  const templateId = PropertiesService.getScriptProperties().getProperty(spec.templateProp);
+  if (!templateId) {
+    throw new Error(
+      spec.name + ' 템플릿이 등록되지 않았습니다 — 스크립트 속성 ' +
+      spec.templateProp + '에 템플릿 프레젠테이션 파일 ID를 넣어주세요 (SETUP.md §9)');
+  }
+  const roomId = Utilities.getUuid().slice(0, 8);
+  const copy = DriveApp.getFileById(templateId)
+    .makeCopy('SLIIIDE ' + spec.name + ' ' + roomId);
+  copy.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+  return {
+    ok: true,
+    roomId: roomId,
+    game: spec.name,
+    links: [{
+      role: spec.roleLabel(0),
+      url: 'https://docs.google.com/presentation/d/' + copy.getId() + '/edit',
+    }],
+    hint: '전원이 같은 링크로 입장합니다. 호스트(구글 로그인 필요)는 슬라이드 상단 메뉴에서 게임을 시작하세요 — 첫 실행 때 권한 승인 창이 한 번 뜹니다.',
+  };
 }
 
 /** 트리거 한도 확보 — 부족하면 오래된 방부터 닫는다 */

@@ -1,3 +1,8 @@
 # 프로토타입 보관용 — 같이 푸시하면 전역 상수 중복 선언으로 스크립트가 죽는다
 omok.gs
 omok-duel.gs
+# 슬라이드 게임은 템플릿 프레젠테이션에 바인딩되는 스크립트 — 공장에 푸시하면 onOpen 충돌
+slides-quiz.gs
+slides-quiz-sidebar.html
+slides-doors.gs
+slides-doors-sidebar.html

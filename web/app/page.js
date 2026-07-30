@@ -25,6 +25,16 @@ const GAMES = [
     desc: '전원 한 링크 · 말 1~5에 베팅하고 레이스를 지켜봐라',
     players: 1, ready: true,
   },
+  {
+    id: 'quiz', name: '퀴즈쇼', emoji: '🧠',
+    desc: '전원 한 링크 · 구글 슬라이드 — 아바타를 끌어 정답 카드에 올려라',
+    players: 1, ready: true,
+  },
+  {
+    id: 'doors', name: '운명의 문', emoji: '🚪',
+    desc: '전원 한 링크 · 구글 슬라이드 — 운명의 문을 골라 끝까지 살아남아라',
+    players: 1, ready: true,
+  },
 ];
 
 const DIFFICULTIES = [
@@ -167,7 +177,9 @@ export default function Home() {
         <section className="room">
           <h2>🎉 {room.game} 방이 열렸습니다</h2>
           <p className="hint">
-            각 플레이어에게 <b>자기 링크만</b> 보내세요. 링크가 곧 플레이어 자리입니다.
+            {room.hint
+              ? room.hint
+              : <>각 플레이어에게 <b>자기 링크만</b> 보내세요. 링크가 곧 플레이어 자리입니다.</>}
           </p>
           <div className="links">
             {room.links.map(link => (
