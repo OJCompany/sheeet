@@ -132,8 +132,16 @@ function handleHttp(params) {
         maxRows: dbgSheet.getMaxRows(),
         values: dbgSheet.getRange(String(params.range)).getDisplayValues(),
       };
+    } else if (params.admin === 'setprop' && params.prop && params.value) {
+      // 호스트 전용 설정 등록 (키 게이트 + 허용 목록) — 슬라이드 템플릿 ID 등록용
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const allowed = ['QUIZ_TEMPLATE_ID', 'DOORS_TEMPLATE_ID'];
+      if (allowed.indexOf(String(params.prop)) < 0) throw new Error('허용되지 않은 속성');
+      PropertiesService.getScriptProperties()
+        .setProperty(String(params.prop), String(params.value));
+      out = { ok: true, set: params.prop };
     } else if (!params.game) {
-      out = { ok: true, service: 'SHEEET room factory', version: 'v10', games: Object.keys(GAMES) };
+      out = { ok: true, service: 'SHEEET room factory', version: 'v11', games: Object.keys(GAMES) };
     } else {
       out = createRoom(String(params.game), Number(params.players) || 0, {
         rounds: Number(params.rounds) || 0,
