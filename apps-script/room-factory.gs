@@ -858,12 +858,17 @@ function handlePixelEdit(e, room, roomId) {
   // 라운드 시작 체크박스
   if (r === c.start.row && col === c.start.col && e.value === 'TRUE') {
     e.range.setValue(false);
-    if (room.phase !== 'idle') return;
+    if (room.phase !== 'idle') {
+      // 러너가 쿼터 초과·오류로 중간에 죽으면 phase가 영원히 남아 방이 굳는다.
+      // 3분 넘게 진행이 없으면 죽은 판으로 보고 재시작을 허용한다.
+      if (Date.now() - (room.runAt || 0) < 3 * 60 * 1000) return;
+    }
     if (room.round >= room.rounds) {
       sheet.getRange(c.banner.row, c.banner.col).setValue('🏁 게임이 끝났습니다! 새 방을 만들어 주세요');
       return;
     }
     room.phase = 'running'; // 저장은 onMove 바깥 래퍼가 수행
+    room.runAt = Date.now();
     return () => runPixelRound(roomId, JSON.parse(JSON.stringify(room)));
   }
 }
@@ -967,6 +972,7 @@ function runPixelRound(roomId, room) {
     setAll(s => s.getRange(c.done.row, c.done.col).setValue(false));
     updateRoom(roomId, rm => {
       rm.phase = 'draw';
+      rm.runAt = Date.now();
       rm.doneFlags = room.fileIds.map(() => false);
     });
     bannerAll('🖌 ' + Math.round(diff.drawMs / 1000) + '초! 기억대로 그리세요. 다 그리면 [다 그렸으면] 체크 — 전원 체크하면 바로 채점', '#1565C0');
@@ -1051,6 +1057,9 @@ function runPixelRound(roomId, room) {
       bannerAll('☕ 라운드 ' + roundNo + ' 종료! 준비되면 아무나 [라운드 시작]을 체크하세요', '#188038');
       setAll(s => s.getRange(c.state.row, c.state.col).setValue('대기 중'));
     }
+  } catch (err) {
+    // 쿼터 하드킬은 못 잡지만, 코드 오류는 사용자에게 보이게
+    bannerAll('⚠️ 진행 중 오류: ' + ((err && err.message) || err) + ' — [라운드 시작]으로 재시도하세요', FLASH_RED);
   } finally {
     updateRoom(roomId, rm => {
       rm.phase = 'idle';
@@ -1200,8 +1209,12 @@ function handleHorseEdit(e, room, roomId) {
   if (e.range.getRow() === HR.start.row && e.range.getColumn() === HR.start.col
       && e.value === 'TRUE') {
     e.range.setValue(false);
-    if (room.phase !== 'idle') return;
+    if (room.phase !== 'idle') {
+      // 레이스 러너가 죽어 phase가 굳었으면 3분 뒤 재시작 허용
+      if (Date.now() - (room.runAt || 0) < 3 * 60 * 1000) return;
+    }
     room.phase = 'racing';
+    room.runAt = Date.now();
     return () => runHorseRace(roomId, JSON.parse(JSON.stringify(room)));
   }
 }
@@ -1274,6 +1287,8 @@ function runHorseRace(roomId, room) {
       sheet.getRange(HR.betRow + idx, 3, 1, 2)
         .setBackground(horse === winner + 1 ? HR.gold : '#ECEFF1');
     });
+  } catch (err) {
+    banner('⚠️ 레이스 중 오류: ' + ((err && err.message) || err) + ' — [레이스 시작]으로 재시도하세요');
   } finally {
     updateRoom(roomId, rm => { rm.phase = 'idle'; });
     SpreadsheetApp.flush();
