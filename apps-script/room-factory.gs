@@ -596,6 +596,19 @@ const PX_DIFFS = {
   hard: { size: 12, colors: 5, memorizeMs: 15000, drawMs: 90000, label: '어려움 (12×12·5색)' },
 };
 
+// 다크 아케이드 테마 — "이게 스프레드시트야 게임이야" 룩의 재료.
+// 캔버스(흰 판 + 검정 액자)는 손대지 않는다.
+const PX_UI = {
+  bg: '#14162B',       // 화면 전체 배경 (다크 네이비)
+  card: '#232649',     // 패널 카드
+  cardLine: '#4A4F8C', // 카드 테두리
+  text: '#EDEFFF',     // 본문 글자
+  sub: '#9BA3D0',      // 보조 글자
+  accent: '#FFD166',   // 포인트 (아케이드 옐로)
+  screen: '#FFF8E1',   // 배너 = 전광판 (크림 — 러너의 글자색들이 그대로 잘 보인다)
+  timerText: '#FFAB91',
+};
+
 // 도트 그림 데이터: '0'=빈칸, 숫자=팔레트 색
 const PX_ART = {
   easy: [
@@ -680,8 +693,11 @@ function pxFixPanel(sheet, c) {
   ];
   labels.forEach(([p, txt]) =>
     sheet.getRange(p.row, p.col).setValue(txt)
-      .setFontWeight('bold').setBackground('#FFFFFF').setFontColor('#000000'));
-  [c.round, c.score, c.state, c.done].forEach(p =>
+      .setFontWeight('bold').setBackground(PX_UI.card).setFontColor(PX_UI.accent));
+  [c.round, c.score, c.state].forEach(p =>
+    sheet.getRange(p.row, p.col).setBackground(PX_UI.card).setFontColor(PX_UI.text));
+  // 체크박스 칸은 밝은 칩 위에 — 다크 배경에선 체크박스가 묻힌다
+  [c.start, c.done].forEach(p =>
     sheet.getRange(p.row, p.col).setBackground('#FFFFFF').setFontColor('#000000'));
   sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW).setFontColor('#000000');
 }
@@ -726,6 +742,10 @@ function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
     sheet.insertRowsAfter(sheet.getMaxRows(), needRows - sheet.getMaxRows());
   }
 
+  // 게임 룩의 핵심 두 방: 격자선을 숨기고, 화면 전체를 다크 배경으로
+  sheet.setHiddenGridlines(true);
+  sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).setBackground(PX_UI.bg);
+
   // 팔레트 조건부 서식(숫자 입력=색칠, 숫자 숨김)은 캔버스 안쪽에만 적용.
   // 시트 전체에 걸면 패널의 점수 숫자(1~5점)까지 색으로 가려지는 사고가 난다.
   const canvas = sheet.getRange(PX.grid.row, PX.grid.col, size, size);
@@ -748,15 +768,20 @@ function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
     .setFontWeight('bold').setFontSize(12)
     .setHorizontalAlignment('center').setVerticalAlignment('middle')
     .setWrap(true) // 긴 문구는 두 줄로 — 잘리지 않는다
-    .setBackground('#E8F5E9');
+    .setBackground(PX_UI.screen);
+  // 배너를 전광판처럼 — 노란 프레임
+  sheet.getRange(c.banner.row, c.banner.col, 1, c.banner.width)
+    .setBorder(true, true, true, true, false, false, PX_UI.accent, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   // 팔레트 견본: 이 칸들을 복사해 붙여넣거나, 채우기 색으로 직접 칠한다
   for (let v = 1; v <= diff.colors; v++) {
     sheet.getRange(c.legend.row, PX.grid.col + v - 1).setBackground(PX.colors[v]);
   }
+  sheet.getRange(c.legend.row, PX.grid.col, 1, diff.colors)
+    .setBorder(true, true, true, true, true, true, '#FFFFFF', SpreadsheetApp.BorderStyle.SOLID);
   sheet.setRowHeight(c.legend.row, 24);
   sheet.getRange(c.legend.row, PX.grid.col + diff.colors + 1)
     .setValue('← 팔레트! 칸을 복사해 붙여넣기(Cmd+C/V)하거나 채우기(🖌)로 칠하세요. 숫자 1~' + diff.colors + ' 입력도 OK')
-    .setFontSize(10).setFontColor('#555555');
+    .setFontSize(10).setFontColor(PX_UI.sub);
 
   // 검정 액자 프레임 + 그리기 판 (프레임 안쪽이 그리는 영역)
   pxPaintFrame(sheet, size);
@@ -777,7 +802,11 @@ function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
   sheet.getRange(c.state.row, c.state.col).setValue('대기 중');
   sheet.getRange(c.done.row, c.done.col).insertCheckboxes();
   sheet.getRange(c.timer.row, c.timer.col)
-    .setFontSize(16).setFontWeight('bold').setFontColor('#D84315');
+    .setValue('⏱ READY')
+    .setFontSize(16).setFontWeight('bold').setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setFontColor(PX_UI.timerText).setBackground(PX_UI.card)
+    .setBorder(true, true, true, true, false, false, PX_UI.cardLine, SpreadsheetApp.BorderStyle.SOLID);
   // 셀 크기: 캔버스·갤러리 전부 동일한 30px 정사각 (채점 때 그림이 달라 보이지 않게)
   sheet.setColumnWidths(c.pcol + 2, size + 2, 30);              // 오른쪽 갤러리 블록
   sheet.setRowHeights(c.galleryRow, 3 * (size + 3) + 4, 30);    // 갤러리 행 전체
@@ -895,9 +924,9 @@ function runPixelRound(roomId, room) {
         }
       }
     }
-    // 타이머 스타일 원상복귀
+    // 타이머 스타일 원상복귀 (다크 테마 카드로)
     setAll(s => s.getRange(c.timer.row, c.timer.col)
-      .setValue('').setFontColor('#D84315').setBackground('#FFFFFF').setFontSize(16));
+      .setValue('⏱ READY').setFontColor(PX_UI.timerText).setBackground(PX_UI.card).setFontSize(16));
   };
 
   try {
@@ -917,7 +946,7 @@ function runPixelRound(roomId, room) {
     setAll(s => {
       s.getRange(c.galleryRow, PX.grid.col - 1, galRows, galCols)
         .clearContent()
-        .setBackground('#FFFFFF')
+        .setBackground(PX_UI.bg)
         .setBorder(false, false, false, false, false, false);
       pxFixPanel(s, c);
       pxPaintFrame(s, size);
@@ -961,7 +990,8 @@ function runPixelRound(roomId, room) {
         const pos = pxGalleryPos(c, size, p);
         // 제목을 그림 폭만큼 병합 — 긴 닉네임도 안 잘린다
         s.getRange(pos.gr, pos.gc, 1, size).breakApart().merge();
-        s.getRange(pos.gr, pos.gc).setValue('🎨 ' + pxName(room, p)).setFontWeight('bold');
+        s.getRange(pos.gr, pos.gc).setValue('🎨 ' + pxName(room, p))
+          .setFontWeight('bold').setFontColor(PX_UI.text);
         const bgGrid = d.map(r => r.map(x => (x ? PX.colors[Number(x)] : '#FFFFFF')));
         s.getRange(pos.gr + 1, pos.gc, size, size).clearContent().setBackgrounds(bgGrid)
           .setBorder(true, true, true, true, true, true, '#DDDDDD', SpreadsheetApp.BorderStyle.SOLID);
