@@ -40,7 +40,7 @@ const LAST_AMBER = '#FFE082';   // 마지막 수 하이라이트
 const TURN_GREEN = '#C8E6C9';   // 내 차례 초록불
 const TURN_GRAY = '#EEEEEE';    // 상대 차례
 const BANNER_DEFAULT = '⚡ SHEEET 오목 — 빈 칸에 아무 글자나 입력하면 돌이 놓입니다';
-const TRIGGER_LIMIT = 19; // 공식 한도 20에서 여유 1
+const TRIGGER_LIMIT = 17; // 공식 한도 20 — 클록 러너 원샷 트리거 몫으로 여유 3
 
 // ---------- 게임 레지스트리 (새 게임은 여기에 추가) ----------
 
@@ -129,6 +129,31 @@ function handleHttp(params) {
       };
     } else if (params.ads === 'list') {
       out = { ok: true, ads: adsList() };
+    } else if (params.admin === 'roomstate' && params.roomId) {
+      // 진단용: 방 상태(단계·하트비트) 조회
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      out = { ok: true, room: loadJson('ROOMS')[String(params.roomId)] || null };
+    } else if (params.admin === 'queueround' && params.roomId) {
+      // 진단용: 실제 게임과 동일한 클록 릴레이 경로로 라운드 예약
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const qrRooms = loadJson('ROOMS');
+      if (!qrRooms[String(params.roomId)]) throw new Error('없는 방');
+      qrRooms[String(params.roomId)].phase = 'running';
+      qrRooms[String(params.roomId)].runAt = Date.now();
+      saveJson('ROOMS', qrRooms);
+      queueRunner(String(params.game || 'pixel'), String(params.roomId));
+      out = { ok: true, queued: true };
+    } else if (params.admin === 'runround' && params.roomId) {
+      // 진단용: 웹앱 컨텍스트(확실한 6분 한도)에서 픽셀 라운드를 직접 실행
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const rrRooms = loadJson('ROOMS');
+      const rrRoom = rrRooms[String(params.roomId)];
+      if (!rrRoom) throw new Error('없는 방: ' + params.roomId);
+      rrRoom.phase = 'running';
+      rrRoom.runAt = Date.now();
+      saveJson('ROOMS', rrRooms);
+      runPixelRound(String(params.roomId), JSON.parse(JSON.stringify(rrRoom)));
+      out = { ok: true, finished: true, room: loadJson('ROOMS')[String(params.roomId)] };
     } else if (params.admin === 'setprop' && params.prop && params.value) {
       // 호스트 전용 설정 등록 (키 게이트 + 허용 목록) — 슬라이드 템플릿 ID 등록용
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
@@ -310,6 +335,49 @@ function onMove(e) {
     lock.releaseLock();
   }
   if (typeof afterUnlock === 'function') afterUnlock();
+}
+
+// ---------- 러너 릴레이 ----------
+// 실측: 편집 트리거발 실행은 ~30초에 하드킬된다(문서상 6분과 다름).
+// 그래서 시작 체크박스는 라운드를 "예약"만 하고, 실제 라운드는
+// 클록(시간 기반) 원샷 트리거가 독립 실행으로 완주한다.
+
+function queueRunner(game, roomId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const q = loadJson('RUN_QUEUE');
+    q.items = (q.items || []).concat([{ game: game, roomId: roomId }]);
+    saveJson('RUN_QUEUE', q);
+  } finally {
+    lock.releaseLock();
+  }
+  ScriptApp.newTrigger('sxClockRunner').timeBased().after(1000).create();
+}
+
+function sxClockRunner() {
+  // 소진된 클록 트리거 정리 (실행 중인 건 삭제해도 영향 없음)
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'sxClockRunner')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+
+  let job = null;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const q = loadJson('RUN_QUEUE');
+    const items = q.items || [];
+    job = items.shift() || null;
+    saveJson('RUN_QUEUE', { items: items });
+    if (items.length) ScriptApp.newTrigger('sxClockRunner').timeBased().after(1000).create();
+  } finally {
+    lock.releaseLock();
+  }
+  if (!job) return;
+  const room = loadJson('ROOMS')[job.roomId];
+  if (!room) return;
+  if (job.game === 'pixel') runPixelRound(job.roomId, JSON.parse(JSON.stringify(room)));
+  else if (job.game === 'horse') runHorseRace(job.roomId, JSON.parse(JSON.stringify(room)));
 }
 
 /** 방 상태를 잠금 하에 짧게 갱신 (장시간 실행 중 세이브포인트용) */
@@ -869,7 +937,11 @@ function handlePixelEdit(e, room, roomId) {
     }
     room.phase = 'running'; // 저장은 onMove 바깥 래퍼가 수행
     room.runAt = Date.now();
-    return () => runPixelRound(roomId, JSON.parse(JSON.stringify(room)));
+    // 클록 트리거 시동에 최대 1분 걸릴 수 있어 즉시 피드백을 준다
+    sheet.getRange(c.banner.row, c.banner.col)
+      .setValue('⏳ 라운드 준비 중… 곧 시작합니다 (최대 1분)').setFontColor('#1565C0');
+    sheet.getRange(c.state.row, c.state.col).setValue('⏳ 준비 중');
+    return () => queueRunner('pixel', roomId); // 라운드는 클록 트리거가 완주한다
   }
 }
 
@@ -934,6 +1006,9 @@ function runPixelRound(roomId, room) {
       .setValue('⏱ READY').setFontColor(PX_UI.timerText).setBackground(PX_UI.card).setFontSize(16));
   };
 
+  // 진단용 하트비트 — 어느 단계까지 살아 있었는지 방 상태에 남긴다 (admin=roomstate로 조회)
+  const hb = tag => updateRoom(roomId, rm => { rm.hb = tag + '@' + Date.now(); });
+
   try {
     // 그림 선택 (라운드 간 중복 방지)
     const pool = PX_ART[room.diffKey].map((_, i) => i).filter(i => room.usedArt.indexOf(i) < 0);
@@ -960,7 +1035,9 @@ function runPixelRound(roomId, room) {
       s.getRange(PX.grid.row, PX.grid.col, size, size).clearContent().setBackgrounds(answerBg);
     });
     bannerAll('👀 라운드 ' + roundNo + ' — 이 그림을 ' + Math.round(diff.memorizeMs / 1000) + '초 동안 기억하세요!', '#D84315');
+    hb('1-prep-done');
     countdown(diff.memorizeMs, false);
+    hb('2-memorize-done');
 
     // 2) 지우고 60초 그리기 (테두리·프레임 재도색 — 붙여넣기가 지워놨을 수 있음)
     setAll(s => {
@@ -976,7 +1053,9 @@ function runPixelRound(roomId, room) {
       rm.doneFlags = room.fileIds.map(() => false);
     });
     bannerAll('🖌 ' + Math.round(diff.drawMs / 1000) + '초! 기억대로 그리세요. 다 그리면 [다 그렸으면] 체크 — 전원 체크하면 바로 채점', '#1565C0');
+    hb('3-draw-start');
     countdown(diff.drawMs, true);
+    hb('4-draw-done');
     updateRoom(roomId, rm => { rm.phase = 'running'; });
 
     // 3) 그림 수거 + 갤러리 20초
@@ -1005,7 +1084,9 @@ function runPixelRound(roomId, room) {
       s.getRange(c.state.row, c.state.col).setValue('👀 감상 타임');
     });
     bannerAll('👀 다들 어떻게 그렸을까? 누가 1등일까요?', '#6A1B9A');
+    hb('5-gallery-start');
     countdown(PX.galleryMs, false);
+    hb('6-gallery-done');
 
     // 4) 정답 공개 + 채점
     // 채점: 정답 픽셀과 그린 픽셀의 합집합 기준 일치율 (빈 판 = 0%)
@@ -1215,7 +1296,9 @@ function handleHorseEdit(e, room, roomId) {
     }
     room.phase = 'racing';
     room.runAt = Date.now();
-    return () => runHorseRace(roomId, JSON.parse(JSON.stringify(room)));
+    sheet.getRange(HR.banner.row, HR.banner.col)
+      .setValue('⏳ 출발 준비 중… 곧 시작합니다 (최대 1분)');
+    return () => queueRunner('horse', roomId); // 레이스도 클록 트리거로 릴레이
   }
 }
 
