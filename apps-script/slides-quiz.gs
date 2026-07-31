@@ -160,6 +160,11 @@ function qzStart() {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    // 판이 없으면 먼저 자동 생성 — 진행자는 [게임 시작]만 누르면 된다
+    if (!qzLoadState_()) {
+      qzBuildBoard_();
+      qzSaveState_({ phase: 'LOBBY', qNo: 0, players: {}, log: [] });
+    }
     const st = qzLoadState_();
     if (!st || st.phase !== 'LOBBY') return qzStatus_('로비 상태가 아닙니다. 먼저 보드를 생성하세요.');
 

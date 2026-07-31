@@ -103,7 +103,13 @@ function dofStart() {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const st = dofLoadState_();
+    let st = dofLoadState_();
+    if (!st) {
+      // 판이 없으면 먼저 자동 생성 — 진행자는 [게임 시작]만 누르면 된다
+      dofBuildBoard_(); // dofSetup의 잠금 재획득으로 인한 데드락을 피해 내부 빌드를 직접 호출
+      dofSaveState_({ phase: 'LOBBY', round: 0, players: {}, log: [], deadCount: 0 });
+      st = dofLoadState_();
+    }
     if (!st || st.phase !== 'LOBBY') return dofStatus_('로비 상태가 아닙니다. 먼저 보드를 생성하세요.');
 
     const slide = dofSlide_();

@@ -106,11 +106,6 @@ const GAMES = [
     desc: '전원 한 링크 · 구글 슬라이드 — 아바타를 끌어 정답 카드에 올려라',
     players: 1, ready: true,
   },
-  {
-    id: 'doors', name: '운명의 문', emoji: '🚪',
-    desc: '전원 한 링크 · 구글 슬라이드 — 운명의 문을 골라 끝까지 살아남아라',
-    players: 1, ready: true,
-  },
 ];
 
 const DIFFICULTIES = [

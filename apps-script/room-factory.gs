@@ -93,12 +93,7 @@ const GAMES = {
     templateProp: 'QUIZ_TEMPLATE_ID',
     roleLabel: () => '🧠 전원 입장 링크',
   },
-  doors: {
-    name: '운명의 문',
-    slides: true,
-    templateProp: 'DOORS_TEMPLATE_ID',
-    roleLabel: () => '🚪 전원 입장 링크',
-  },
+  // doors(운명의 문)는 폐기 결정으로 제외 — 코드는 slides-doors.gs에 보존
 };
 
 // ---------- HTTP 엔드포인트 ----------
