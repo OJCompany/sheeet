@@ -133,6 +133,22 @@ function handleHttp(params) {
       // 진단용: 방 상태(단계·하트비트) 조회
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
       out = { ok: true, room: loadJson('ROOMS')[String(params.roomId)] || null };
+    } else if (params.admin === 'rearm') {
+      // enableFastStart 승인 전에 만든 방들의 트리거는 옛 권한(UrlFetch 없음)으로 돌아
+      // 즉시경로가 실패한다. 웹앱 컨텍스트(승인된 스코프)에서 트리거를 재생성해
+      // 모든 기존 방이 즉시경로를 타게 만든다.
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const trigs = ScriptApp.getProjectTriggers()
+        .filter(t => t.getHandlerFunction() === 'onMove');
+      const srcIds = [];
+      trigs.forEach(t => {
+        const id = t.getTriggerSourceId();
+        if (id && srcIds.indexOf(id) < 0) srcIds.push(id);
+        ScriptApp.deleteTrigger(t);
+      });
+      srcIds.forEach(id => ScriptApp.newTrigger('onMove').forSpreadsheet(id).onEdit().create());
+      PROPS.setProperty('FAST_START', 'armed');
+      out = { ok: true, rearmed: srcIds.length };
     } else if (params.admin === 'runjob' && params.roomId) {
       // 빠른 릴레이 목적지: 웹앱 컨텍스트에서 러너를 완주시킨다
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
