@@ -133,6 +133,15 @@ function handleHttp(params) {
       // 진단용: 방 상태(단계·하트비트) 조회
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
       out = { ok: true, room: loadJson('ROOMS')[String(params.roomId)] || null };
+    } else if (params.admin === 'runjob' && params.roomId) {
+      // 빠른 릴레이 목적지: 웹앱 컨텍스트에서 러너를 완주시킨다
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const rjRoom = loadJson('ROOMS')[String(params.roomId)];
+      if (!rjRoom) throw new Error('없는 방');
+      const rjCopy = JSON.parse(JSON.stringify(rjRoom));
+      if (String(params.game) === 'horse') runHorseRace(String(params.roomId), rjCopy);
+      else runPixelRound(String(params.roomId), rjCopy);
+      out = { ok: true, finished: true };
     } else if (params.admin === 'queueround' && params.roomId) {
       // 진단용: 실제 게임과 동일한 클록 릴레이 경로로 라운드 예약
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
@@ -341,6 +350,41 @@ function onMove(e) {
 // 실측: 편집 트리거발 실행은 ~30초에 하드킬된다(문서상 6분과 다름).
 // 그래서 시작 체크박스는 라운드를 "예약"만 하고, 실제 라운드는
 // 클록(시간 기반) 원샷 트리거가 독립 실행으로 완주한다.
+
+/**
+ * 빠른 릴레이: 자기 웹앱을 호출해 라운드를 즉시(2~3초) 시작한다.
+ * UrlFetch 권한이 아직 승인 안 됐으면 클록 트리거로 폴백(최대 ~1분 지연).
+ * 권한 활성화: 편집기에서 enableFastStart 1회 실행 → 승인.
+ */
+function launchRunner(game, roomId) {
+  try {
+    const url = ScriptApp.getService().getUrl();
+    if (!url) throw new Error('웹앱 URL 없음');
+    // 이 fetch는 30초 뒤 트리거가 죽어 응답이 끊겨도, 목적지 웹앱 실행은
+    // 독립적으로 6분 한도까지 라운드를 완주한다 (arch-review 검증).
+    UrlFetchApp.fetch(
+      url + '?admin=runjob&key=sheeet-qa-7f3a&game=' + game + '&roomId=' + roomId,
+      { muteHttpExceptions: true, followRedirects: true });
+    PROPS.setProperty('FAST_START', 'armed'); // 성공 = 스코프 승인됨
+  } catch (err) {
+    // UrlFetch 스코프 미승인 등 → 클록 트리거로 폴백(느림)
+    queueRunner(game, roomId);
+  }
+}
+
+/** 빠른 시작이 켜져 있는가 (배너 문구 분기용) */
+function fastStartArmed() {
+  return PROPS.getProperty('FAST_START') === 'armed';
+}
+
+/** 1회 실행용: UrlFetch 권한을 승인해 "즉시 시작" 경로를 활성화한다.
+ *  호스트가 편집기에서 이 함수를 실행하면 external_request 스코프 동의창이 뜬다. */
+function enableFastStart() {
+  const res = UrlFetchApp.fetch(ScriptApp.getService().getUrl(), { muteHttpExceptions: true });
+  PROPS.setProperty('FAST_START', 'armed');
+  Logger.log('빠른 시작 활성화 완료 (HTTP ' + res.getResponseCode() + ') — 이제 라운드가 2~3초 안에 시작됩니다');
+  return '빠른 시작 활성화 완료';
+}
 
 function queueRunner(game, roomId) {
   const lock = LockService.getScriptLock();
@@ -937,11 +981,14 @@ function handlePixelEdit(e, room, roomId) {
     }
     room.phase = 'running'; // 저장은 onMove 바깥 래퍼가 수행
     room.runAt = Date.now();
-    // 클록 트리거 시동에 최대 1분 걸릴 수 있어 즉시 피드백을 준다
+    // 시동 피드백 — 빠른 시작 승인 여부에 따라 정직하게 안내
     sheet.getRange(c.banner.row, c.banner.col)
-      .setValue('⏳ 라운드 준비 중… 곧 시작합니다 (최대 1분)').setFontColor('#1565C0');
+      .setValue(fastStartArmed()
+        ? '⏳ 라운드 시동 중… (곧 시작)'
+        : '⏳ 준비 중… 최대 1분 (호스트가 enableFastStart 실행하면 즉시 시작됩니다)')
+      .setFontColor('#1565C0');
     sheet.getRange(c.state.row, c.state.col).setValue('⏳ 준비 중');
-    return () => queueRunner('pixel', roomId); // 라운드는 클록 트리거가 완주한다
+    return () => launchRunner('pixel', roomId); // 즉시 시작(웹앱) 시도, 실패 시 클록 폴백
   }
 }
 
@@ -1297,8 +1344,8 @@ function handleHorseEdit(e, room, roomId) {
     room.phase = 'racing';
     room.runAt = Date.now();
     sheet.getRange(HR.banner.row, HR.banner.col)
-      .setValue('⏳ 출발 준비 중… 곧 시작합니다 (최대 1분)');
-    return () => queueRunner('horse', roomId); // 레이스도 클록 트리거로 릴레이
+      .setValue('⏳ 출발 준비 중…');
+    return () => launchRunner('horse', roomId); // 즉시 시작(웹앱) 시도, 실패 시 클록 폴백
   }
 }
 
