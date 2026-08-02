@@ -10,11 +10,19 @@ export async function POST(req) {
     '&players=' + encodeURIComponent(players || '') +
     '&rounds=' + encodeURIComponent(rounds || '') +
     '&difficulty=' + encodeURIComponent(difficulty || '');
-  try {
-    const res = await fetch(url, { redirect: 'follow', cache: 'no-store' });
-    const data = await res.json();
-    return Response.json(data);
-  } catch (err) {
-    return Response.json({ ok: false, error: '방 공장 호출 실패: ' + String(err) }, { status: 502 });
+
+  // 구글이 가끔 JSON 대신 일시 장애 HTML을 돌려준다 — 조용히 한 번 더 시도
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { redirect: 'follow', cache: 'no-store' });
+      const text = await res.text();
+      try {
+        return Response.json(JSON.parse(text));
+      } catch (parseErr) { /* HTML 응답 — 재시도 */ }
+    } catch (netErr) { /* 네트워크 오류 — 재시도 */ }
   }
+  return Response.json(
+    { ok: false, error: '방 공장이 잠시 붐비고 있어요 — 몇 초 뒤 다시 눌러주세요 🙏' },
+    { status: 502 },
+  );
 }

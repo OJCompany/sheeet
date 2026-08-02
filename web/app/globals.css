@@ -37,6 +37,22 @@ body {
   background: #FFF9C4;
 }
 
+/* 흩뿌려진 "광고 자리" 표식 — MDH처럼 빈 공간이 스스로 팔리고 있음을 말한다 */
+.bcell.slot {
+  flex-direction: column;
+  border: 1.5px dashed #cbd5cb;
+  color: #a8b3a8;
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.bcell.slot:hover {
+  background: #FFF9C4;
+  border-color: #F9A825;
+  color: #8a6d1a;
+}
+
 .bcell.filled:hover {
   outline: 2px solid #111827;
   outline-offset: -2px;

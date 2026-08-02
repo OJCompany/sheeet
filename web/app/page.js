@@ -71,6 +71,11 @@ function AdBackdrop() {
           >
             {c.first ? c.emoji : ''}
           </a>
+        ) : (i * 7) % 89 === 3 ? (
+          <a key={i} className="bcell slot" href={AD_INQUIRY}
+             title="이쪽은 광고 자리입니다 — 클릭해서 문의">
+            광고<br />자리
+          </a>
         ) : (
           <a key={i} className="bcell" href={AD_INQUIRY} title="빈 칸 = 광고 자리! 클릭해서 문의" />
         )
