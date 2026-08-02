@@ -44,45 +44,62 @@ const TRIGGER_LIMIT = 17; // 공식 한도 20 — 클록 러너 원샷 트리거
 
 // ---------- 게임 레지스트리 (새 게임은 여기에 추가) ----------
 
+// 시트 게임 공통: state(방 상태 생성) + tplDraw(템플릿 1회 그리기) +
+// patch(복사본에 플레이어별 차이 반영). 방 생성은 "템플릿 복사 + 병렬 패치"로 빠르게.
 const GAMES = {
   omok: {
     name: '오목',
+    sheetName: '오목',
     minPlayers: 2,
     maxPlayers: 2,
     roleLabel: i => (i === 0 ? '⚫ 흑' : '⚪ 백'),
-    build: buildOmokRoom,
+    state: (roomId, n, opts) => ({ turn: BLACK, over: false }),
+    tplDraw: sheet => drawOmokBoard(sheet, BLACK),
+    patch: patchOmokFile,
     onEdit: handleOmokMove,
   },
   pixel: {
     name: '픽셀 기억 그리기',
+    sheetName: '픽셀',
     minPlayers: 2,
     maxPlayers: 6,
     roleLabel: i => '🎨 플레이어 ' + (i + 1),
-    build: buildPixelRoom,
+    state: buildPixelState,
+    tplVariant: room => room.diffKey,
+    tplDraw: (sheet, room) => drawPixelBoard(sheet, 0, room.diffKey, 3, 2),
+    patch: patchPixelFile,
     onEdit: handlePixelEdit,
   },
   horse: {
     name: '경마',
+    sheetName: '경마',
     minPlayers: 1,
     maxPlayers: 1, // 파일 1개를 전원이 공유
     roleLabel: () => '🏇 전원 입장 링크',
-    build: buildHorseRoom,
+    state: (roomId, n, opts) => ({ phase: 'idle' }),
+    tplDraw: sheet => drawHorseBoard(sheet),
     onEdit: handleHorseEdit,
   },
   liar: {
     name: '라이어 게임',
+    sheetName: '라이어',
     minPlayers: 3,
     maxPlayers: 8,
     roleLabel: i => '🎭 플레이어 ' + (i + 1),
-    build: buildLiarRoom,
+    state: (roomId, n, opts) => ({ phase: 'idle', names: {}, votes: {}, usedWords: [], n: n }),
+    tplDraw: sheet => drawLiarBoard(sheet, 0, 8),
+    patch: patchLiarFile,
     onEdit: handleLiarEdit,
   },
   maze: {
     name: '3D 미로 탈출',
+    sheetName: '미로',
     minPlayers: 2,
     maxPlayers: 2,
     roleLabel: i => '🌀 플레이어 ' + (i + 1),
-    build: buildMazeRoom,
+    state: buildMazeState,
+    tplDraw: sheet => drawMazeBoard(sheet),
+    patch: patchMazeFile,
     onEdit: handleMazeEdit,
   },
   // 슬라이드 게임 — 시트가 아니라 구글 슬라이드 템플릿을 복제해서 방을 만든다.
@@ -129,6 +146,18 @@ function handleHttp(params) {
       };
     } else if (params.ads === 'list') {
       out = { ok: true, ads: adsList() };
+    } else if (params.admin === 'refill') {
+      // 웜풀 수동 보충 (시딩용) — 웹앱 컨텍스트 동기 실행
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      poolRefill();
+      const plNow = loadJson('POOL');
+      const cnt = {};
+      Object.keys(plNow).forEach(k => { cnt[k] = plNow[k].length; });
+      out = { ok: true, pool: cnt };
+    } else if (params.admin === 'makefile' && params.game && params.roomId) {
+      // 병렬 방 생성의 작업 단위: 템플릿 복사 + 플레이어별 패치 + 공유
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      out = makeRoomFile(String(params.game), String(params.roomId), Number(params.idx) || 0);
     } else if (params.admin === 'roomstate' && params.roomId) {
       // 진단용: 방 상태(단계·하트비트) 조회
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
@@ -250,14 +279,51 @@ function createRoom(game, players, opts) {
     ensureTriggerBudget(n);
 
     const roomId = Utilities.getUuid().slice(0, 8);
-    const room = spec.build(roomId, n, opts || {});
+    const room = spec.state(roomId, n, opts || {});
     room.game = game;
     room.open = true;
     room.created = Date.now();
+    room.fileIds = [];
+    room.urls = [];
 
+    // 파일 생성 전에 상태 저장 — 병렬 makefile들이 patch에 쓸 수 있게
     const rooms = loadJson('ROOMS');
     rooms[roomId] = room;
     saveJson('ROOMS', rooms);
+
+    // 템플릿은 팬아웃 전에 확보 (병렬 중복 생성 방지)
+    ensureTemplate(game, spec, room);
+
+    // 플레이어 파일: 웜풀에서 꺼내 쓰고(즉시), 부족분만 그 자리에서 생성
+    const key = poolKey(game, room);
+    const pool = loadJson('POOL');
+    const claimed = (pool[key] || []).splice(0, n);
+    pool[key] = pool[key] || [];
+    saveJson('POOL', pool);
+
+    const files = [];
+    for (let i = 0; i < n; i++) {
+      if (i < claimed.length) {
+        // 풀 파일: 이름표 갈고 플레이어별 패치만
+        const pf = claimed[i];
+        DriveApp.getFileById(pf.id)
+          .setName('SHEEET ' + spec.name + ' ' + roomId + ' — P' + (i + 1));
+        if (spec.patch) {
+          const sh = SpreadsheetApp.openById(pf.id).getSheetByName(spec.sheetName);
+          spec.patch(sh, i, room);
+        }
+        files.push({ ok: true, id: pf.id, url: pf.url });
+      } else {
+        files.push(makeRoomFile(game, roomId, i)); // 콜드 패스 (풀 고갈 시)
+      }
+    }
+    schedulePoolRefill(); // 재고 보충은 백그라운드 클록에게
+
+    room.fileIds = files.map(f => f.id);
+    room.urls = files.map(f => f.url);
+    const rooms2 = loadJson('ROOMS');
+    rooms2[roomId] = room;
+    saveJson('ROOMS', rooms2);
 
     const index = loadJson('FILE_INDEX');
     room.fileIds.forEach(id => { index[id] = roomId; });
@@ -275,6 +341,35 @@ function createRoom(game, players, opts) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** 게임(+변형)당 1회: 판을 그린 템플릿 파일을 만들어 캐시한다 */
+function ensureTemplate(game, spec, room) {
+  const variant = spec.tplVariant ? spec.tplVariant(room) : 'v1';
+  const prop = 'TPL_' + game + '_' + variant;
+  let id = PROPS.getProperty(prop);
+  if (id) return id;
+  const ss = SpreadsheetApp.create('SHEEET TPL ' + game + ' ' + variant);
+  const sheet = ss.getSheets()[0];
+  if (spec.sheetName) sheet.setName(spec.sheetName);
+  spec.tplDraw(sheet, room);
+  id = ss.getId();
+  PROPS.setProperty(prop, id);
+  return id;
+}
+
+/** 플레이어 파일 1개 생성: 템플릿 복사 → 플레이어별 패치 → 링크 공유 */
+function makeRoomFile(game, roomId, idx) {
+  const spec = GAMES[game];
+  const room = loadJson('ROOMS')[roomId];
+  if (!spec || !room) throw new Error('makefile: 방/게임 없음');
+  const tplId = ensureTemplate(game, spec, room);
+  const copy = DriveApp.getFileById(tplId)
+    .makeCopy('SHEEET ' + spec.name + ' ' + roomId + ' — P' + (idx + 1));
+  const ss = SpreadsheetApp.openById(copy.getId());
+  if (spec.patch) spec.patch(ss.getSheets()[0], idx, room);
+  copy.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+  return { ok: true, id: copy.getId(), url: ss.getUrl() };
 }
 
 /** 슬라이드 게임 방 — 스크립트가 설치된 템플릿 프레젠테이션을 복제해서 연다.
@@ -457,23 +552,6 @@ function updateRoom(roomId, mutate) {
 }
 
 // ---------- 오목 구현 ----------
-
-function buildOmokRoom(roomId, n) {
-  const files = [BLACK, WHITE].map(color => {
-    const ss = SpreadsheetApp.create('SHEEET 오목 ' + roomId + ' — ' + (color === BLACK ? '흑' : '백'));
-    const sheet = ss.getSheets()[0].setName(SHEET_NAME);
-    drawOmokBoard(sheet, color);
-    DriveApp.getFileById(ss.getId())
-      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
-    return { id: ss.getId(), url: ss.getUrl() };
-  });
-  return {
-    fileIds: files.map(f => f.id),
-    urls: files.map(f => f.url),
-    turn: BLACK,
-    over: false,
-  };
-}
 
 function drawOmokBoard(sheet, color) {
   const board = sheet.getRange(BOARD.row, BOARD.col, BOARD.size, BOARD.size);
@@ -828,31 +906,6 @@ function pxFixPanel(sheet, c) {
   [c.start, c.done].forEach(p =>
     sheet.getRange(p.row, p.col).setBackground('#FFFFFF').setFontColor('#000000'));
   sheet.getRange(c.nick.row, c.nick.col).setBackground(NICK_YELLOW).setFontColor('#000000');
-}
-
-function buildPixelRoom(roomId, n, opts) {
-  const diffKey = PX_DIFFS[opts.difficulty] ? opts.difficulty : 'normal';
-  const rounds = Math.min(Math.max(opts.rounds || 3, 1), 5);
-  const files = [];
-  for (let i = 0; i < n; i++) {
-    const ss = SpreadsheetApp.create('SHEEET 픽셀 ' + roomId + ' — P' + (i + 1));
-    const sheet = ss.getSheets()[0].setName(PX.sheet);
-    drawPixelBoard(sheet, i, diffKey, rounds, n);
-    DriveApp.getFileById(ss.getId())
-      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
-    files.push({ id: ss.getId(), url: ss.getUrl() });
-  }
-  return {
-    fileIds: files.map(f => f.id),
-    urls: files.map(f => f.url),
-    diffKey: diffKey,
-    rounds: rounds,
-    round: 0,
-    phase: 'idle',
-    scores: new Array(n).fill(0),
-    usedArt: [],
-    names: {},
-  };
 }
 
 function drawPixelBoard(sheet, idx, diffKey, rounds, n) {
@@ -1284,15 +1337,6 @@ const HR = {
 };
 const HR_NUMS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
-function buildHorseRoom(roomId, n) {
-  const ss = SpreadsheetApp.create('SHEEET 경마 ' + roomId);
-  const sheet = ss.getSheets()[0].setName(HR.sheet);
-  drawHorseBoard(sheet);
-  DriveApp.getFileById(ss.getId())
-    .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
-  return { fileIds: [ss.getId()], urls: [ss.getUrl()], phase: 'idle' };
-}
-
 function drawHorseBoard(sheet) {
   const finishCol = HR.trackCol + HR.trackLen;
   const needCols = finishCol + 4;
@@ -1509,26 +1553,6 @@ const LR = {
   rosterRow: 10, rosterCol: 2,                // 참가자 명단
   pcol: 11,                                   // 우측 패널 (K열)
 };
-
-function buildLiarRoom(roomId, n) {
-  const files = [];
-  for (let i = 0; i < n; i++) {
-    const ss = SpreadsheetApp.create('SHEEET 라이어 ' + roomId + ' — P' + (i + 1));
-    const sheet = ss.getSheets()[0].setName(LR.sheet);
-    drawLiarBoard(sheet, i, n);
-    DriveApp.getFileById(ss.getId())
-      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
-    files.push({ id: ss.getId(), url: ss.getUrl() });
-  }
-  return {
-    fileIds: files.map(f => f.id),
-    urls: files.map(f => f.url),
-    phase: 'idle',
-    names: {},
-    votes: {},
-    usedWords: [],
-  };
-}
 
 function lrCells() {
   const p = LR.pcol;
@@ -1822,36 +1846,6 @@ function mzCells() {
   };
 }
 
-function buildMazeRoom(roomId, n) {
-  const maze = mzGen(MZ.size);
-  const exit = [MZ.size - 2, MZ.size - 2];
-  const files = [];
-  for (let i = 0; i < 2; i++) {
-    const ss = SpreadsheetApp.create('SHEEET 미로 ' + roomId + ' — P' + (i + 1));
-    const sheet = ss.getSheets()[0].setName(MZ.sheet);
-    drawMazeBoard(sheet);
-    DriveApp.getFileById(ss.getId())
-      .setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
-    files.push({ id: ss.getId(), url: ss.getUrl() });
-  }
-  const room = {
-    fileIds: files.map(f => f.id),
-    urls: files.map(f => f.url),
-    maze: maze,
-    exit: exit,
-    p: [{ r: 1, c: 1, dir: 2, steps: 0 }, { r: 1, c: 1, dir: 2, steps: 0 }],
-    names: {},
-    over: false,
-  };
-  // 초기 시점 렌더
-  files.forEach((f, i) => {
-    const sheet = SpreadsheetApp.openById(f.id).getSheetByName(MZ.sheet);
-    mzPaintView(sheet, mzRenderView(maze, room.p[i], exit));
-    mzStatus(sheet, room, i);
-  });
-  return room;
-}
-
 function drawMazeBoard(sheet) {
   const c = mzCells();
   sheet.getRange(MZ.banner.row, MZ.banner.col, 1, MZ.banner.width).merge();
@@ -1973,4 +1967,134 @@ function handleMazeEdit(e, room, roomId) {
       .getRange(c.opp.row, c.opp.col).setValue(me.steps + '걸음');
     return;
   }
+}
+
+
+// ---------- 방 상태 빌더 + 플레이어별 패치 (템플릿 복사 방식) ----------
+
+function buildPixelState(roomId, n, opts) {
+  const diffKey = PX_DIFFS[opts.difficulty] ? opts.difficulty : 'normal';
+  return {
+    diffKey: diffKey,
+    rounds: Math.min(Math.max(opts.rounds || 3, 1), 5),
+    round: 0,
+    phase: 'idle',
+    scores: new Array(n).fill(0),
+    usedArt: [],
+    names: {},
+  };
+}
+
+function buildMazeState(roomId, n, opts) {
+  return {
+    maze: mzGen(MZ.size),
+    exit: [MZ.size - 2, MZ.size - 2],
+    p: [{ r: 1, c: 1, dir: 2, steps: 0 }, { r: 1, c: 1, dir: 2, steps: 0 }],
+    names: {},
+    over: false,
+  };
+}
+
+/** 오목: 템플릿은 흑 기준 — 백(1번) 파일만 라벨·차례 불빛을 바꾼다 */
+function patchOmokFile(sheet, idx, room) {
+  if (idx === 0) return;
+  sheet.getRange(CELL.you).setValue(WHITE + ' 백').setFontWeight('bold').setFontSize(12);
+  sheet.getRange(CELL.turn).setBackground(TURN_GRAY);
+}
+
+/** 픽셀: 라운드 수만 방 설정대로 */
+function patchPixelFile(sheet, idx, room) {
+  const c = pxCells(PX_DIFFS[room.diffKey].size);
+  sheet.getRange(c.round.row, c.round.col).setValue('0 / ' + room.rounds);
+}
+
+/** 라이어: 명단을 인원수대로 + "← 나" 표시 */
+function patchLiarFile(sheet, idx, room) {
+  const n = room.n || 3;
+  for (let i = 0; i < 8; i++) {
+    sheet.getRange(LR.rosterRow + i, LR.rosterCol)
+      .setValue(i < n ? (i + 1) + '. 플레이어' + (i + 1) + (i === idx ? '  ← 나' : '') : '');
+  }
+}
+
+/** 미로: 이 방의 미로 기준으로 초기 1인칭 시점을 렌더 */
+function patchMazeFile(sheet, idx, room) {
+  mzPaintView(sheet, mzRenderView(room.maze, room.p[idx], room.exit));
+  mzStatus(sheet, room, idx);
+}
+
+
+// ---------- 웜풀: 방 파일을 미리 만들어두고 즉시 지급 ----------
+
+const POOL_TARGETS = {
+  omok_v1: 4, maze_v1: 4, liar_v1: 8, horse_v1: 2,
+  pixel_normal: 6, pixel_easy: 3, pixel_hard: 3,
+};
+
+function poolKey(game, room) {
+  const spec = GAMES[game];
+  return game + '_' + (spec.tplVariant ? spec.tplVariant(room) : 'v1');
+}
+
+function poolPseudoRoom(key) {
+  // 템플릿 변형 결정에 필요한 최소 상태 (픽셀만 난이도 변형이 있다)
+  if (key.indexOf('pixel_') === 0) return { diffKey: key.slice(6), rounds: 3 };
+  return {};
+}
+
+/** 풀 파일 1개 생산: 템플릿 복사 + 공유 (패치는 지급 시점에) */
+function makePoolFile(key) {
+  const game = key.split('_')[0];
+  const spec = GAMES[game];
+  const tplId = ensureTemplate(game, spec, poolPseudoRoom(key));
+  const copy = DriveApp.getFileById(tplId)
+    .makeCopy('SHEEET POOL ' + key + ' ' + Utilities.getUuid().slice(0, 6));
+  copy.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+  return { id: copy.getId(), url: 'https://docs.google.com/spreadsheets/d/' + copy.getId() + '/edit' };
+}
+
+/** 재고 보충 예약 (이미 예약돼 있으면 생략) */
+function schedulePoolRefill() {
+  const has = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === 'poolRefill');
+  if (!has) ScriptApp.newTrigger('poolRefill').timeBased().after(1000).create();
+}
+
+/** 클록 트리거: 모든 풀을 목표 수량까지 채운다 (실행당 최대 ~4분) */
+function poolRefill() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'poolRefill')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  const t0 = Date.now();
+  let more = false;
+  const keys = Object.keys(POOL_TARGETS);
+  for (let k = 0; k < keys.length; k++) {
+    const key = keys[k];
+    while (true) {
+      if (Date.now() - t0 > 240 * 1000) { more = true; break; }
+      const lock = LockService.getScriptLock();
+      lock.waitLock(15000);
+      let need;
+      try {
+        const pool = loadJson('POOL');
+        need = (pool[key] || []).length < POOL_TARGETS[key];
+      } finally {
+        lock.releaseLock();
+      }
+      if (!need) break;
+      const pf = makePoolFile(key); // 파일 생산은 잠금 밖에서
+      const lock2 = LockService.getScriptLock();
+      lock2.waitLock(15000);
+      try {
+        const pool2 = loadJson('POOL');
+        pool2[key] = pool2[key] || [];
+        pool2[key].push(pf);
+        saveJson('POOL', pool2);
+      } finally {
+        lock2.releaseLock();
+      }
+    }
+    if (more) break;
+  }
+  if (more) ScriptApp.newTrigger('poolRefill').timeBased().after(1000).create();
 }
