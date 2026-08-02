@@ -160,9 +160,10 @@ function qzStart() {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    // 판이 없으면 먼저 자동 생성 — 진행자는 [게임 시작]만 누르면 된다
+    // 판이 없으면 먼저 자동 생성 — 진행자는 [게임 시작]만 누르면 된다.
+    // 사전 구축 템플릿의 복사본은 판이 이미 있으므로(상태만 없음) 재구축을 생략한다.
     if (!qzLoadState_()) {
-      qzBuildBoard_();
+      if (qzFindAll_(qzSlide_(), 'avatar').length === 0) qzBuildBoard_();
       qzSaveState_({ phase: 'LOBBY', qNo: 0, players: {}, log: [] });
     }
     const st = qzLoadState_();
