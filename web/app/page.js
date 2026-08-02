@@ -248,7 +248,14 @@ export default function Home() {
         </section>
       )}
 
-      {creating && <p className="status">🛠 게임방을 만드는 중… (플레이어 수에 따라 10~30초)</p>}
+      {creating && (
+        <div className="status loading">
+          <span className="loader" aria-hidden="true">
+            <i /><i /><i /><i /><i />
+          </span>
+          게임방을 만드는 중… <b>약 5~10초</b>
+        </div>
+      )}
       {error && <p className="error">⚠️ {error}</p>}
 
       {room && (

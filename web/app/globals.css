@@ -88,6 +88,40 @@ body {
   padding: 8px 14px;
 }
 
+/* 셀이 차오르는 로딩 — "시트가 곧 게임방" 컨셉의 로더 */
+.status.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d7dfd7;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  font-size: 15px;
+}
+
+.loader {
+  display: inline-grid;
+  grid-template-columns: repeat(5, 12px);
+  gap: 2px;
+}
+
+.loader i {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #dfe7df;
+  animation: cellfill 1.2s infinite;
+}
+
+.loader i:nth-child(2) { animation-delay: 0.15s; }
+.loader i:nth-child(3) { animation-delay: 0.3s; }
+.loader i:nth-child(4) { animation-delay: 0.45s; }
+.loader i:nth-child(5) { animation-delay: 0.6s; }
+
+@keyframes cellfill {
+  0%, 100% { background: #dfe7df; }
+  40% { background: #188038; }
+}
+
 .logo {
   display: inline-block;
   background: #188038;
