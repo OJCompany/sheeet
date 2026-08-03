@@ -28,7 +28,9 @@ const PROPS = PropertiesService.getScriptProperties();
 const SHEET_NAME = '오목';
 const BOARD = { row: 3, col: 2, size: 15 }; // B3:P17 (2행은 배너)
 // 우측 패널 — 시선 순서(위→아래)대로: ①닉네임 ②내 돌 ③현재 차례 ④상태 ⑤새 게임
-const CELL = { nick: 'S2', you: 'S4', turn: 'S6', state: 'S8', reset: 'S10', banner: 'B2' };
+const CELL = { nick: 'S2', you: 'S4', turn: 'S6', state: 'S8', reset: 'S10', meter: 'S12', banner: 'B2' };
+// 위협 가중치: 열린4(승리 직전)>4>열린3>3>열린2 — 판세 우세 미터용
+const OMOK_W = { open4: 100, four: 30, open3: 15, three: 5, open2: 2 };
 const BLACK = '⚫';
 const WHITE = '⚪';
 const WOOD = '#E8C8A0';
@@ -166,6 +168,17 @@ function handleHttp(params) {
         ['word', 'cat', 'liar', 'maze', 'exit', 'usedArt', 'usedWords'].forEach(k => delete rsRoom[k]);
       }
       out = { ok: true, room: rsRoom };
+    } else if (params.admin === 'resettemplates') {
+      // 판 그리기 코드가 바뀌면 템플릿·웜풀을 비워 새 디자인으로 재생산한다
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const all = PROPS.getProperties();
+      let cleared = 0;
+      Object.keys(all).forEach(k => {
+        if (k.indexOf('TPL_') === 0) { PROPS.deleteProperty(k); cleared++; }
+      });
+      saveJson('POOL', {});
+      schedulePoolRefill();
+      out = { ok: true, clearedTemplates: cleared };
     } else if (params.admin === 'rearm') {
       // enableFastStart 승인 전에 만든 방들의 트리거는 옛 권한(UrlFetch 없음)으로 돌아
       // 즉시경로가 실패한다. 웹앱 컨텍스트(승인된 스코프)에서 트리거를 재생성해
@@ -617,8 +630,53 @@ function drawOmokBoard(sheet, color) {
   sheet.getRange('R10').setValue('새 게임').setFontWeight('bold');
   sheet.getRange(CELL.reset).insertCheckboxes();
 
+  sheet.getRange('R12').setValue('⚖️ 판세').setFontWeight('bold');
+  sheet.getRange(CELL.meter).setValue('⚫ 0 : 0 ⚪ · 팽팽')
+    .setFontSize(11).setFontWeight('bold');
+
   sheet.setColumnWidth(18, 130); // R열
   sheet.setColumnWidth(19, 140); // S열
+}
+
+/** 한 색의 판세 위협 점수 — 모든 라인의 연속·열림 패턴을 가중 합산 */
+function omokThreat(vals, stone) {
+  const size = BOARD.size;
+  const at = (r, c) => (r < 0 || c < 0 || r >= size || c >= size) ? 'X' : vals[r][c];
+  const dirs = [[0, 1], [1, 0], [1, 1], [1, -1]];
+  let score = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      if (vals[r][c] !== stone) continue;
+      for (const [dr, dc] of dirs) {
+        if (at(r - dr, c - dc) === stone) continue; // 라인 시작점만
+        let len = 0, rr = r, cc = c;
+        while (at(rr, cc) === stone) { len++; rr += dr; cc += dc; }
+        const ends = (at(rr, cc) === '' ? 1 : 0) + (at(r - dr, c - dc) === '' ? 1 : 0);
+        if (len >= 5) score += 1000;
+        else if (len === 4) score += ends === 2 ? OMOK_W.open4 : ends === 1 ? OMOK_W.four : 0;
+        else if (len === 3) score += ends === 2 ? OMOK_W.open3 : ends === 1 ? OMOK_W.three : 0;
+        else if (len === 2) score += ends === 2 ? OMOK_W.open2 : 0;
+      }
+    }
+  }
+  return score;
+}
+
+/** 양쪽 판세를 계산해 양 파일의 미터 셀에 표시 */
+function updateOmokMeter(room) {
+  const vals = SpreadsheetApp.openById(room.fileIds[0]).getSheetByName(SHEET_NAME)
+    .getRange(BOARD.row, BOARD.col, BOARD.size, BOARD.size).getValues();
+  const sb = omokThreat(vals, BLACK);
+  const sw = omokThreat(vals, WHITE);
+  const diff = sb - sw;
+  const lead = Math.abs(diff) < 5 ? '팽팽'
+    : (diff > 0 ? '⚫ 흑' : '⚪ 백') + ' 우세' + (Math.abs(diff) >= 100 ? '! 🔥' : '');
+  const text = '⚫ ' + sb + ' : ' + sw + ' ⚪ · ' + lead;
+  room.fileIds.forEach(id => {
+    SpreadsheetApp.openById(id).getSheetByName(SHEET_NAME)
+      .getRange(CELL.meter).setValue(text)
+      .setFontColor(Math.abs(diff) < 5 ? '#6b7280' : diff > 0 ? '#000000' : '#455A64');
+  });
 }
 
 function handleOmokMove(e, room) {
@@ -709,6 +767,7 @@ function handleOmokMove(e, room) {
   } else {
     room.turn = myColor === BLACK ? WHITE : BLACK;
     syncOmokPanels(room);
+    updateOmokMeter(room); // 착수마다 판세 우세 미터 갱신
   }
 }
 
@@ -766,6 +825,7 @@ function resetOmokRoom(room) {
       .setBackground(WOOD);
     sheet.getRange(CELL.reset).setValue(false);
     sheet.getRange(CELL.banner).setValue(BANNER_DEFAULT).setFontColor('#000000');
+    sheet.getRange(CELL.meter).setValue('⚫ 0 : 0 ⚪ · 팽팽').setFontColor('#6b7280');
   }
   room.turn = BLACK;
   room.over = false;
