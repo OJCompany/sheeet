@@ -14,7 +14,7 @@ export async function POST(req) {
   // 구글이 가끔 JSON 대신 일시 장애 HTML을 돌려준다 — 조용히 한 번 더 시도
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(url, { redirect: 'follow', cache: 'no-store' });
+      const res = await fetch(url, { redirect: 'follow', cache: 'no-store', signal: AbortSignal.timeout(15000) });
       const text = await res.text();
       try {
         return Response.json(JSON.parse(text));

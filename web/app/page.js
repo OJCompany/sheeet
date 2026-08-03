@@ -14,7 +14,7 @@ function AdBackdrop() {
   useEffect(() => {
     fetch('/api/ads')
       .then(r => r.json())
-      .then(d => { if (d.ok) setAds(d.ads); })
+      .then(d => setAds(d.ok && Array.isArray(d.ads) ? d.ads : []))
       .catch(() => {});
     const calc = () => setDim({
       cols: Math.ceil(window.innerWidth / 42),
@@ -161,7 +161,9 @@ export default function Home() {
         q[link.url] = await QRCode.toDataURL(link.url, { width: 300, margin: 1 });
       }
       setQrs(q);
-      setRoom(data);
+      const meta = GAMES.find(g => g.id === game.id);
+      setRoom({ ...data, clientName: meta?.name || data.game });
+      setConfigGame(null);
     } catch (err) {
       setError(String(err.message || err));
     } finally {
@@ -170,7 +172,9 @@ export default function Home() {
   }
 
   async function copy(url) {
-    await navigator.clipboard.writeText(url);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch { /* clipboard 미지원/거부 — 조용히 넘어감 */ }
     setCopied(url);
     setTimeout(() => setCopied(null), 1500);
   }
@@ -265,7 +269,7 @@ export default function Home() {
 
       {room && (
         <section className="room">
-          <h2>🎉 {room.game} 방이 열렸습니다</h2>
+          <h2>🎉 {room.clientName || room.game} 방이 열렸습니다</h2>
           <p className="hint">
             {room.hint
               ? room.hint

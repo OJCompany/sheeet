@@ -159,9 +159,13 @@ function handleHttp(params) {
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
       out = makeRoomFile(String(params.game), String(params.roomId), Number(params.idx) || 0);
     } else if (params.admin === 'roomstate' && params.roomId) {
-      // 진단용: 방 상태(단계·하트비트) 조회
+      // 진단용: 방 상태(단계·하트비트) 조회 — 비밀 필드는 마스킹(라이어 제시어/정체, 미로 정답)
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
-      out = { ok: true, room: loadJson('ROOMS')[String(params.roomId)] || null };
+      const rsRoom = loadJson('ROOMS')[String(params.roomId)] || null;
+      if (rsRoom) {
+        ['word', 'cat', 'liar', 'maze', 'exit', 'usedArt', 'usedWords'].forEach(k => delete rsRoom[k]);
+      }
+      out = { ok: true, room: rsRoom };
     } else if (params.admin === 'rearm') {
       // enableFastStart 승인 전에 만든 방들의 트리거는 옛 권한(UrlFetch 없음)으로 돌아
       // 즉시경로가 실패한다. 웹앱 컨텍스트(승인된 스코프)에서 트리거를 재생성해
@@ -329,8 +333,15 @@ function createRoom(game, players, opts) {
     room.fileIds.forEach(id => { index[id] = roomId; });
     saveJson('FILE_INDEX', index);
 
-    room.fileIds.forEach(id =>
-      ScriptApp.newTrigger('onMove').forSpreadsheet(id).onEdit().create());
+    // 트리거 생성이 한도로 실패하면 좀비 방(플레이 불가+ROOMS 잠식)이 남는다 → 롤백
+    try {
+      room.fileIds.forEach(id =>
+        ScriptApp.newTrigger('onMove').forSpreadsheet(id).onEdit().create());
+    } catch (trigErr) {
+      const rb = loadJson('ROOMS'); delete rb[roomId]; saveJson('ROOMS', rb);
+      const ix = loadJson('FILE_INDEX'); room.fileIds.forEach(id => { delete ix[id]; }); saveJson('FILE_INDEX', ix);
+      throw new Error('방을 만들 자리가 부족합니다 — 잠시 후 다시 시도해주세요');
+    }
 
     return {
       ok: true,
@@ -399,32 +410,40 @@ function createSlidesRoom(spec) {
   };
 }
 
-/** 트리거 한도 확보 — 부족하면 오래된 방부터 닫는다 */
+/** 트리거 한도 확보 — 부족하면 "쉬는" 오래된 방부터 닫는다.
+ *  트리거 총량 기준으로 판단한다(클록/풀 트리거도 20개 한도를 함께 먹는다). */
 function ensureTriggerBudget(needed) {
-  const count = () =>
-    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'onMove').length;
-  if (count() + needed <= TRIGGER_LIMIT) return;
+  const total = () => ScriptApp.getProjectTriggers().length;
+  if (total() + needed <= TRIGGER_LIMIT) return;
 
   const rooms = loadJson('ROOMS');
-  const oldestFirst = Object.keys(rooms)
-    .filter(id => rooms[id].open)
+  // 진행 중(phase가 idle 아님) 방은 절대 닫지 않는다 — 라이브 게임 보호
+  const closable = Object.keys(rooms)
+    .filter(id => rooms[id].open && (!rooms[id].phase || rooms[id].phase === 'idle'))
     .sort((a, b) => rooms[a].created - rooms[b].created);
-  for (const id of oldestFirst) {
+  for (const id of closable) {
     closeRoom(id, rooms);
-    if (count() + needed <= TRIGGER_LIMIT) break;
+    delete rooms[id]; // ROOMS 무한 성장 방지 — 닫은 방은 상태에서 완전히 제거
+    if (total() + needed <= TRIGGER_LIMIT) break;
   }
   saveJson('ROOMS', rooms);
-  if (count() + needed > TRIGGER_LIMIT) throw new Error('동시 진행 방이 너무 많습니다');
+  if (total() + needed > TRIGGER_LIMIT) throw new Error('동시 진행 방이 너무 많습니다');
 }
 
+/** 방 정리: 트리거 삭제 + FILE_INDEX 정리 + 드라이브 파일 휴지통.
+ *  (rooms에서의 삭제는 호출자 책임 — GC/예산 로직이 함께 처리) */
 function closeRoom(roomId, rooms) {
   const room = rooms[roomId];
-  const ids = new Set(room.fileIds);
+  if (!room) return;
+  const ids = new Set(room.fileIds || []);
   ScriptApp.getProjectTriggers()
     .filter(t => t.getHandlerFunction() === 'onMove' && ids.has(t.getTriggerSourceId()))
     .forEach(t => ScriptApp.deleteTrigger(t));
   const index = loadJson('FILE_INDEX');
-  room.fileIds.forEach(id => { delete index[id]; });
+  (room.fileIds || []).forEach(id => {
+    delete index[id];
+    try { DriveApp.getFileById(id).setTrashed(true); } catch (e) { /* 이미 삭제됨 */ }
+  });
   saveJson('FILE_INDEX', index);
   room.open = false;
 }
@@ -507,7 +526,10 @@ function queueRunner(game, roomId) {
   } finally {
     lock.releaseLock();
   }
-  ScriptApp.newTrigger('sxClockRunner').timeBased().after(1000).create();
+  // 이미 대기 중인 클록 러너가 있으면 새로 만들지 않는다 (트리거 예산 낭비 방지)
+  const has = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === 'sxClockRunner');
+  if (!has) ScriptApp.newTrigger('sxClockRunner').timeBased().after(1000).create();
 }
 
 function sxClockRunner() {
@@ -673,6 +695,15 @@ function handleOmokMove(e, room) {
     for (const s of boards) {
       s.getRange(CELL.state).setValue(winText);
       s.getRange(CELL.banner).setValue(winText).setFontColor('#F57F17');
+    }
+    room.over = true;
+  } else if (sheet.getRange(BOARD.row, BOARD.col, BOARD.size, BOARD.size)
+               .getValues().every(row => row.every(v => v === BLACK || v === WHITE))) {
+    // 판이 가득 찼는데 5목이 없으면 무승부 — 방이 굳지 않게 명시적으로 종료
+    const drawText = '🤝 무승부! 판이 꽉 찼습니다 — [새 게임]으로 다시';
+    for (const s of boards) {
+      s.getRange(CELL.state).setValue(drawText);
+      s.getRange(CELL.banner).setValue(drawText).setFontColor('#6b7280');
     }
     room.over = true;
   } else {

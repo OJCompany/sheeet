@@ -184,6 +184,11 @@ body {
   opacity: 0.55;
 }
 
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .card .emoji {
   font-size: 34px;
 }

@@ -7,6 +7,7 @@ export async function GET() {
     const res = await fetch(base + '?ads=list', {
       redirect: 'follow',
       next: { revalidate: 60 }, // 광고 장부는 1분 캐시
+      signal: AbortSignal.timeout(15000),
     });
     const data = await res.json();
     return Response.json(data);
