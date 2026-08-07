@@ -102,6 +102,11 @@ const GAMES = [
     players: 2, ready: true,
   },
   {
+    id: 'seotda', name: '섯다', emoji: '🎴',
+    desc: '2~6인 · 화투 두 장의 진검승부 — 내 패는 내 링크에만 보인다',
+    ready: true, configurable: true, opts: { players: [2, 6] },
+  },
+  {
     id: 'horse', name: '경마', emoji: '🏇',
     desc: '전원 한 링크 · 말 1~5에 베팅하고 레이스를 지켜봐라',
     players: 1, ready: true,

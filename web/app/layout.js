@@ -8,7 +8,7 @@ export const metadata = {
   openGraph: {
     title: 'SHEEET — 링크를 열면 그 시트가 곧 게임방',
     description:
-      '설치도, 가입도, 앱도 없다. 링크 하나로 친구와 바로 시작하는 스프레드시트 게임 6종.',
+      '설치도, 가입도, 앱도 없다. 링크 하나로 친구와 바로 시작하는 스프레드시트 게임 7종.',
     url: 'https://sheeet-zeta.vercel.app',
     siteName: 'SHEEET',
     locale: 'ko_KR',
@@ -17,7 +17,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SHEEET — 링크를 열면 그 시트가 곧 게임방',
-    description: '설치도, 가입도, 앱도 없다. 링크 하나로 시작하는 스프레드시트 게임 6종.',
+    description: '설치도, 가입도, 앱도 없다. 링크 하나로 시작하는 스프레드시트 게임 7종.',
   },
 };
 
