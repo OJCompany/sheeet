@@ -1,0 +1,4 @@
+*.xlsm binary
+*.ps1 text working-tree-encoding=UTF-8
+*.bas text working-tree-encoding=UTF-8
+*.md text
