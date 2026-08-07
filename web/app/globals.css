@@ -8,18 +8,134 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard',
     'Segoe UI', sans-serif;
   background: #f8faf8;
-  background-image:
-    linear-gradient(#e6ebe6 1px, transparent 1px),
-    linear-gradient(90deg, #e6ebe6 1px, transparent 1px);
-  background-size: 40px 28px;
   color: #1f2937;
   min-height: 100vh;
 }
 
+/* 배경 전체 = 광고 셀 바다. 콘텐츠 섬 위가 아니면 클릭이 셀로 떨어진다 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1; /* 콘텐츠 섬 아래, 몸통 배경 위 */
+  display: grid;
+  gap: 1px;
+  background: #dfe7df;
+  pointer-events: auto;
+}
+
+.bcell {
+  background: #f8faf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.bcell:hover {
+  background: #FFF9C4;
+}
+
+/* 흩뿌려진 "광고 자리" 표식 — MDH처럼 빈 공간이 스스로 팔리고 있음을 말한다 */
+.bcell.slot {
+  flex-direction: column;
+  border: 1.5px dashed #cbd5cb;
+  color: #a8b3a8;
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.bcell.slot:hover {
+  background: #FFF9C4;
+  border-color: #F9A825;
+  color: #8a6d1a;
+}
+
+.bcell.filled:hover {
+  outline: 2px solid #111827;
+  outline-offset: -2px;
+  background: inherit;
+}
+
 .wrap {
+  position: relative;
+  z-index: 1;
   max-width: 880px;
   margin: 0 auto;
   padding: 48px 20px 96px;
+  pointer-events: none; /* 빈 공간 클릭은 뒤의 광고 셀로 */
+}
+
+.wrap .hero,
+.wrap .card,
+.wrap .room,
+.wrap .status,
+.wrap .error {
+  pointer-events: auto;
+}
+
+.hero {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid #d7dfd7;
+  border-radius: 16px;
+  padding: 22px 26px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.ad-note {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.ad-note a {
+  color: #188038;
+  font-weight: 700;
+}
+
+.status,
+.error {
+  display: inline-block;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+/* 셀이 차오르는 로딩 — "시트가 곧 게임방" 컨셉의 로더 */
+.status.loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d7dfd7;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  font-size: 15px;
+}
+
+.loader {
+  display: inline-grid;
+  grid-template-columns: repeat(5, 12px);
+  gap: 2px;
+}
+
+.loader i {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #dfe7df;
+  animation: cellfill 1.2s infinite;
+}
+
+.loader i:nth-child(2) { animation-delay: 0.15s; }
+.loader i:nth-child(3) { animation-delay: 0.3s; }
+.loader i:nth-child(4) { animation-delay: 0.45s; }
+.loader i:nth-child(5) { animation-delay: 0.6s; }
+
+@keyframes cellfill {
+  0%, 100% { background: #dfe7df; }
+  40% { background: #188038; }
 }
 
 .logo {
@@ -66,6 +182,11 @@ body {
 .card:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .card .emoji {
@@ -166,6 +287,32 @@ body {
   transform: scale(0.97);
 }
 
+.config .options {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.config label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.config select {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
 .status {
   margin-top: 20px;
   font-size: 15px;
@@ -177,3 +324,4 @@ body {
   color: #b91c1c;
   font-size: 14px;
 }
+

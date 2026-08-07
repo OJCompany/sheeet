@@ -1,0 +1,74 @@
+<!-- SLIIIDE 퀴즈쇼 — 호스트 컨트롤 사이드바
+     Apps Script 프로젝트에서 파일명을 정확히 slides-quiz-sidebar 로 생성할 것.
+     이 창이 열려 있는 동안 2초마다 서버 tick을 호출해 게임 루프를 돌린다. -->
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 16px; background: #FFF8EF; color: #5C4033; }
+  h3 { margin: 0 0 4px; font-size: 17px; color: #FF8A3D; letter-spacing: -.2px; }
+  .sub { margin: 0 0 16px; color: #C09A6B; font-size: 11px; }
+  button { display: block; width: 100%; margin: 8px 0; padding: 11px 12px; border: 1px solid transparent; border-radius: 14px;
+           font-size: 13px; font-weight: 700; cursor: pointer; transition: filter .15s, transform .15s; }
+  button:hover { filter: brightness(1.04); }
+  button:active { transform: scale(.98); }
+  #btnSetup { background: #FFFFFF; border-color: #FFD9A0; color: #8A6A4F; }
+  #btnStart { background: #FF9EB5; color: #fff; }
+  #btnJudge { background: #FFE08A; color: #6B4E0E; }
+  button:disabled { opacity: .45; cursor: default; }
+  #stat { margin: 14px 0 10px; padding: 12px; background: #FFF0F6; border: 1px solid #F6C9DD; border-radius: 14px; font-size: 12px; line-height: 1.6; }
+  #phase { font-weight: 700; }
+  #info { margin: 4px 0 0 14px; color: #A57B62; }
+  #log { padding: 0 4px; font-size: 11px; line-height: 1.65; color: #C09A6B; white-space: pre-wrap; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .on { background: #58C776; box-shadow: 0 0 0 3px rgba(88,199,118,.18); } .off { background: #F05252; }
+  label { font-size: 11px; color: #A57B62; display: flex; gap: 6px; align-items: flex-start; margin-top: 14px; line-height: 1.45; }
+  input { accent-color: #FF9EB5; margin-top: 2px; }
+</style>
+
+<h3>🧠 퀴즈쇼</h3>
+<p class="sub">HOST CONTROL PANEL</p>
+<button id="btnSetup">🧱 보드 생성 (리셋)</button>
+<button id="btnStart">🚀 게임 시작 (카테고리 투표)</button>
+<button id="btnJudge">⚡ 즉시 판정</button>
+
+<div id="stat"><span class="dot off" id="dot"></span><span id="phase">대기</span>
+  <div id="info">-</div>
+</div>
+<div id="log"></div>
+
+<label><input type="checkbox" id="auto" checked> 자동 진행 (2초 tick — 게임 중 반드시 켜두기)</label>
+
+<script>
+  var busy = false;
+
+  function call(fn) {
+    if (busy) return;
+    busy = true;
+    google.script.run
+      .withSuccessHandler(function (r) { render(r); busy = false; })
+      .withFailureHandler(function (e) { fail(e); busy = false; })[fn]();
+  }
+
+  function render(r) {
+    var phaseKo = { LOBBY: '🪑 로비 — 참가자 입장 중', VOTE: '🗳️ 카테고리 투표 중',
+                    QUESTION: '❓ 문제 진행 중', REVEAL: '💡 정답 공개 중', DONE: '🏁 퀴즈 종료' };
+    document.getElementById('dot').className = 'dot ' + (r.ok ? 'on' : 'off');
+    document.getElementById('phase').textContent = phaseKo[r.phase] || '대기';
+    document.getElementById('info').textContent =
+      (r.ok ? (r.cat ? r.cat + ' · ' : '') + '문제 ' + r.qNo + (r.qTotal ? '/' + r.qTotal : '') + ' · 참가 ' + r.total + '명' : '') +
+      (r.msg ? '  ' + r.msg : '');
+    if (r.log) document.getElementById('log').textContent = r.log.slice().reverse().join('\n');
+  }
+
+  function fail(e) {
+    document.getElementById('dot').className = 'dot off';
+    document.getElementById('info').textContent = '오류: ' + (e && e.message ? e.message : e);
+  }
+
+  document.getElementById('btnSetup').onclick = function () { call('qzSetup'); };
+  document.getElementById('btnStart').onclick = function () { call('qzStart'); };
+  document.getElementById('btnJudge').onclick = function () { call('qzJudgeNow'); };
+
+  setInterval(function () {
+    if (document.getElementById('auto').checked) call('qzTick');
+  }, 2000);
+</script>
