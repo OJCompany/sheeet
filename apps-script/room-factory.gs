@@ -168,6 +168,27 @@ function handleHttp(params) {
         ['word', 'cat', 'liar', 'maze', 'exit', 'usedArt', 'usedWords'].forEach(k => delete rsRoom[k]);
       }
       out = { ok: true, room: rsRoom };
+    } else if (params.admin === 'avatars') {
+      // 12지신 아바타 PNG를 레포에서 받아 드라이브 '운명의문_아바타' 폴더에 설치
+      // (slides-quiz.gs가 이 폴더를 발견하면 이모지 대신 이미지 게임말을 쓴다)
+      if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
+      const AV_FOLDER = '운명의문_아바타';
+      const names = ['01_쥐', '02_소', '03_호랑이', '04_토끼', '05_용', '06_뱀',
+                     '07_말', '08_양', '09_원숭이', '10_닭', '11_개', '12_돼지'];
+      const it = DriveApp.getFoldersByName(AV_FOLDER);
+      const folder = it.hasNext() ? it.next() : DriveApp.createFolder(AV_FOLDER);
+      // 기존 파일 정리 후 새로 설치 (중복 방지)
+      const old = folder.getFiles();
+      while (old.hasNext()) { old.next().setTrashed(true); }
+      const base = 'https://raw.githubusercontent.com/OJCompany/sheeet/main/' +
+        encodeURIComponent('12지신_캐릭터_파일') + '/';
+      let saved = 0;
+      names.forEach(nm => {
+        const res = UrlFetchApp.fetch(base + encodeURIComponent(nm) + '.png');
+        folder.createFile(res.getBlob().setName(nm + '.png'));
+        saved++;
+      });
+      out = { ok: true, folder: AV_FOLDER, saved: saved };
     } else if (params.admin === 'resettemplates') {
       // 판 그리기 코드가 바뀌면 템플릿·웜풀을 비워 새 디자인으로 재생산한다
       if (params.key !== 'sheeet-qa-7f3a') throw new Error('admin key required');
