@@ -1,4 +1,4 @@
-# 섯다.xlsm E2E 테스트 (원본이 아닌 복사본에서 실행)
+﻿# 섯다.xlsm E2E 테스트 (원본이 아닌 복사본에서 실행)
 # 검증: 인원 선택(2인/5인), 라운드 진행, 콜/하프/다이, 자금 보존, VBA 오류 부재
 $ErrorActionPreference = 'Stop'
 $src = Join-Path (Split-Path -Parent $PSScriptRoot) '섯다.xlsm'

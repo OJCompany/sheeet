@@ -1,4 +1,4 @@
-# 엑셀 섯다 게임 빌드 스크립트
+﻿# 엑셀 섯다 게임 빌드 스크립트
 # - Game/Assets/Data/Save 시트 + 도형 UI 생성
 # - VBA 모듈 주입 (build\vba\*.bas)
 # - SelfTest 실행 후 섯다.xlsm 저장, 재오픈 검증
